@@ -12,7 +12,7 @@ namespace MemoryManager {
 		[[nodiscard]] bool isRead() const override;
 		[[nodiscard]] bool isWrite() const override;
 
-	private:
+	protected:
 		void read(std::uintptr_t address, void *content, std::size_t length) const override;
 		void write(std::uintptr_t address, const void *content, std::size_t length) const override;
 	};

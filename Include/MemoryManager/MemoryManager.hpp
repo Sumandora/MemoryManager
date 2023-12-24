@@ -150,7 +150,7 @@ namespace MemoryManager {
 		[[nodiscard]] virtual const MemoryLayout* getLayout() const = 0;
 		virtual void update() = 0; // Warning: Calling this will invalidate all references to MemoryRegions
 
-	private:
+	protected:
 		friend Pointer;
 
 		virtual void read(std::uintptr_t address, void* content, std::size_t length) const = 0;
