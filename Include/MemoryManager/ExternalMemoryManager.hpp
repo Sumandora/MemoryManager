@@ -32,6 +32,7 @@ namespace MemoryManager {
 		[[nodiscard]] const MemoryLayout* getLayout() const override;
 		void update() override;
 
+	private:
 		void read(std::uintptr_t address, void *content, std::size_t length) const override;
 		void write(std::uintptr_t address, const void *content, std::size_t length) const override;
 	};
