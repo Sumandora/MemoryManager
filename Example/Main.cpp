@@ -9,7 +9,7 @@ int main()
 {
 	MemoryManager::MemoryManager* memoryManager = new MemoryManager::LocalMemoryManager { MemoryManager::LocalMemoryManager::Mode::NONE };
 
-	int* myInteger = (int*)mmap(nullptr, sizeof(int), PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+	int* myInteger = (int*)mmap(nullptr, sizeof(int), PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 	memoryManager->update();
 
 	std::cout << std::hex;
