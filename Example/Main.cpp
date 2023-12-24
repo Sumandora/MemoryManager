@@ -28,10 +28,11 @@ int main()
 
 	std::cout << std::dec;
 
-	std::cout << "Before writing: " << memoryManager->getPointer(myInteger).read<int>() << std::endl;
-	memoryManager->getPointer(myInteger).write(123);
-	std::cout << "After writing: " << memoryManager->getPointer(myInteger).read<int>() << std::endl;
-	assert(memoryManager->getPointer(myInteger).read<int>() == 123);
+	auto myIntegerPtr = memoryManager->getPointer(myInteger);
+	std::cout << "Before writing: " << myIntegerPtr.read<int>() << std::endl;
+	myIntegerPtr.write(123);
+	std::cout << "After writing: " << myIntegerPtr.read<int>() << std::endl;
+	assert(myIntegerPtr.read<int>() == 123);
 
 	return 0;
 }
