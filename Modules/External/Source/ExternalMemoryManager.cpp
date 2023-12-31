@@ -1,4 +1,4 @@
-#include "MemoryManager/ExternalMemoryManager.hpp"
+#include "../Include/MemoryManager/ExternalMemoryManager.hpp"
 
 #include <fcntl.h>
 #include <fstream>
@@ -45,8 +45,10 @@ ExternalMemoryManager::ExternalMemoryManager(std::string pid, Mode mode)
 	, mode(mode)
 	, memInterface(openFileHandle(this->pid, mode))
 {
+#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
 	if(mode != Mode::NONE && memInterface == -1)
 		throw std::runtime_error(strerror(errno));
+#endif
 }
 
 ExternalMemoryManager::~ExternalMemoryManager() {
@@ -105,7 +107,7 @@ void ExternalMemoryManager::update()
 			}
 		}
 
-		newLayout.insert(MemoryRegion{ this, begin, end - begin, MemoryRegionFlags{ permissions }, name });
+		newLayout.insert(MemoryRegion{ this, begin, end - begin, Flags{ permissions }, name });
 	}
 
 	fileStream.close();
@@ -116,17 +118,41 @@ void ExternalMemoryManager::update()
 void ExternalMemoryManager::read(std::uintptr_t address, void* content, std::size_t length) const
 {
 	if (!isRead()) {
+#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
 		throw std::logic_error("Read is disabled");
+#else
+		return;
+#endif
 	}
 
-	(void)pread(memInterface, content, length, static_cast<off_t>(address));
+	std::ignore = pread(memInterface, content, length, static_cast<off_t>(address));
 }
 
 void ExternalMemoryManager::write(std::uintptr_t address, const void* content, std::size_t length) const
 {
 	if (!isWrite()) {
+#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
 		throw std::logic_error("Write is disabled");
+#else
+		return;
+#endif
 	}
 
-	(void)pwrite(memInterface, content, length, static_cast<off_t>(address));
+	std::ignore = pwrite(memInterface, content, length, static_cast<off_t>(address));
+}
+
+// TODO: This is possible with remote function calls
+void* ExternalMemoryManager::allocate(std::uintptr_t address, std::size_t size, int protection) const
+{
+#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
+	throw std::runtime_error("allocate() is unsupported");
+#endif
+	return nullptr;
+}
+
+void ExternalMemoryManager::deallocate(std::uintptr_t address, std::size_t size) const
+{
+#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
+	throw std::runtime_error("deallocate() is unsupported");
+#endif
 }

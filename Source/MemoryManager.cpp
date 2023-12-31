@@ -9,17 +9,17 @@ Pointer::Pointer(const MemoryManager* parent, std::uintptr_t address)
 {
 }
 
-void Pointer::write(const void* content, std::size_t length)
+void Pointer::write(const void* content, std::size_t length) const
 {
 	return parent->write(address, content, length);
 }
 
-void Pointer::read(void* content, std::size_t length)
+void Pointer::read(void* content, std::size_t length) const
 {
 	return parent->read(address, content, length);
 }
 
-MemoryRegionFlags::MemoryRegionFlags(std::array<char, 4> permissions)
+Flags::Flags(std::array<char, 4> permissions)
 {
 	if(permissions.at(0) == 'r')
 		set(0, true);
@@ -29,6 +29,16 @@ MemoryRegionFlags::MemoryRegionFlags(std::array<char, 4> permissions)
 		set(2, true);
 	if(permissions.at(3) == 'p')
 		set(3, true);
+}
+
+std::string Flags::asString() const
+{
+	std::string string;
+	string += test(0) ? 'r' : '-';
+	string += test(1) ? 'w' : '-';
+	string += test(2) ? 'x' : '-';
+	string += test(3) ? 'p' : '-';
+	return string;
 }
 
 const MemoryRegion* MemoryLayout::findRegion(std::uintptr_t address) const

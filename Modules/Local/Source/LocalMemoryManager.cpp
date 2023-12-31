@@ -1,10 +1,11 @@
 #include "MemoryManager/LocalMemoryManager.hpp"
 
 #include <cstring>
+#include <fcntl.h>
 #include <fstream>
 #include <limits>
 #include <sstream>
-#include <fcntl.h>
+#include <sys/mman.h>
 #include <unistd.h>
 
 using namespace MemoryManager;
@@ -22,6 +23,25 @@ bool LocalMemoryManager::isRead() const
 bool LocalMemoryManager::isWrite() const
 {
 	return true;
+}
+
+void* LocalMemoryManager::allocate(std::uintptr_t address, std::size_t size, int protection) const
+{
+	int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+	void* addr = reinterpret_cast<void*>(address);
+	if(addr != nullptr)
+		flags |= MAP_FIXED_NOREPLACE;
+	return mmap(addr, size, protection, flags, -1, 0);
+}
+
+void LocalMemoryManager::deallocate(std::uintptr_t address, std::size_t size) const
+{
+	int res = munmap(reinterpret_cast<void*>(address), size);
+
+#ifndef LOCALMEMORYMANAGER_DISABLE_EXCEPTIONS
+	if(res == -1)
+		throw std::runtime_error(strerror(errno));
+#endif
 }
 
 void LocalMemoryManager::read(std::uintptr_t address, void* content, std::size_t length) const

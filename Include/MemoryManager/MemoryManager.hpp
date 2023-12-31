@@ -3,13 +3,12 @@
 
 #include <array>
 #include <bitset>
+#include <compare>
 #include <cstdint>
 #include <optional>
 #include <set>
 
 namespace MemoryManager {
-	class MemoryRegion;
-	class MemoryLayout;
 	class MemoryManager;
 
 	class Pointer {
@@ -19,8 +18,8 @@ namespace MemoryManager {
 	public:
 		Pointer(const MemoryManager* parent, std::uintptr_t address);
 
-		void read(void* result, std::size_t length);
-		void write(const void* content, std::size_t length);
+		void read(void* result, std::size_t length) const;
+		void write(const void* content, std::size_t length) const;
 
 		template <typename T, bool UseHeap = (sizeof(T) > sizeof(T*))> // If the structure you are copying is big then returning it would yield a second copy.
 		std::conditional_t<UseHeap, T*, T> read()
@@ -42,25 +41,21 @@ namespace MemoryManager {
 			write(&obj, sizeof(obj));
 		}
 
-		constexpr operator std::uintptr_t() const { return address; };
-		inline std::strong_ordering operator<=>(std::uintptr_t other) const
-		{
-			return address <=> other;
-		}
-		inline std::strong_ordering operator<=>(const Pointer& other) const
-		{
-			return *this <=> other.address;
+		constexpr operator std::uintptr_t () const {
+			return address;
 		}
 	};
 
-	class MemoryRegionFlags : public std::bitset<4> {
+	class Flags : public std::bitset<4> {
 	public:
-		explicit MemoryRegionFlags(std::array<char, 4> permissions); // Parses a rwxp string from the /proc/$/maps interface
+		explicit Flags(std::array<char, 4> permissions); // Parses a "rwxp" string from the /proc/$/maps interface
 
 		[[nodiscard]] constexpr bool isReadable() const { return (*this)[0]; }
 		[[nodiscard]] constexpr bool isWriteable() const { return (*this)[1]; }
 		[[nodiscard]] constexpr bool isExecutable() const { return (*this)[2]; }
 		[[nodiscard]] constexpr bool isPrivate() const { return (*this)[3]; }
+
+		[[nodiscard]] std::string asString() const;
 	};
 
 	class MemoryRegion {
@@ -69,10 +64,10 @@ namespace MemoryManager {
 
 	public:
 		std::size_t length;
-		MemoryRegionFlags flags;
+		Flags flags;
 		std::optional<std::string> name;
 
-		MemoryRegion(const MemoryManager* parent, std::uintptr_t beginAddress, std::size_t length, MemoryRegionFlags flags, std::optional<std::string> name)
+		MemoryRegion(const MemoryManager* parent, std::uintptr_t beginAddress, std::size_t length, Flags flags, std::optional<std::string> name)
 			: parent(parent)
 			, beginAddress(beginAddress)
 			, length(length)
@@ -87,26 +82,6 @@ namespace MemoryManager {
 		[[nodiscard]] bool isInside(std::uintptr_t address) const
 		{
 			return address >= beginAddress && address < beginAddress + length;
-		}
-
-		inline std::strong_ordering operator<=>(std::uintptr_t other) const
-		{
-			return beginAddress <=> other;
-		}
-
-		inline std::strong_ordering operator<=>(const MemoryRegion& other) const
-		{
-			return *this <=> other.beginAddress;
-		}
-
-		inline bool operator==(std::uintptr_t other) const
-		{
-			return this->beginAddress == other;
-		}
-
-		inline bool operator==(const MemoryRegion& other) const
-		{
-			return this->beginAddress == other.beginAddress;
 		}
 
 		struct Compare {
@@ -149,6 +124,16 @@ namespace MemoryManager {
 
 		[[nodiscard]] virtual const MemoryLayout* getLayout() const = 0;
 		virtual void update() = 0; // Warning: Calling this will invalidate all references to MemoryRegions
+
+		/**
+		 * Allocates a memory block TODO: std::allocator?
+		 * @param address if set to something that is not a nullptr then indicates the location of the new memory
+		 * @param size may get rounded up to pagesize
+		 * @param protection indicated in PROT_ flags from posix
+		 * @return on fail returns MAP_FAILED (posix) otherwise returns pointer to the new memory
+		 */
+		[[nodiscard]] virtual void* allocate(std::uintptr_t address, std::size_t size, int protection) const = 0;
+		virtual void deallocate(std::uintptr_t address, std::size_t size) const = 0;
 
 	protected:
 		friend Pointer;

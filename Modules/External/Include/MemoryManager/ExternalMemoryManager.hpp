@@ -1,7 +1,7 @@
 #ifndef MEMORYMANAGER_EXTERNALMEMORYMANAGER_HPP
 #define MEMORYMANAGER_EXTERNALMEMORYMANAGER_HPP
 
-#include "MemoryManager.hpp"
+#include "MemoryManager/MemoryManager.hpp"
 
 namespace MemoryManager {
 
@@ -31,6 +31,9 @@ namespace MemoryManager {
 
 		[[nodiscard]] const MemoryLayout* getLayout() const override;
 		void update() override;
+
+		[[nodiscard]] void* allocate(std::uintptr_t address, std::size_t size, int protection) const override;
+		void deallocate(std::uintptr_t address, std::size_t size) const override;
 
 	protected:
 		void read(std::uintptr_t address, void *content, std::size_t length) const override;

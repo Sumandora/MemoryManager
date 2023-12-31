@@ -7,14 +7,14 @@
 
 int main()
 {
-	MemoryManager::MemoryManager* memoryManager = new MemoryManager::LocalMemoryManager { MemoryManager::LocalMemoryManager::Mode::NONE };
+	MemoryManager::MemoryManager* memoryManager = new MemoryManager::LocalMemoryManager { MemoryManager::LocalMemoryManager::Mode::READ_AND_WRITE };
 
 	int* myInteger = (int*)mmap(nullptr, sizeof(int), PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 	memoryManager->update();
 
 	std::cout << std::hex;
 	for(const MemoryManager::MemoryRegion& reg : *memoryManager->getLayout()) {
-		(std::cout << (reg.name.has_value() ? reg.name.value() : std::string("(empty)")) << ' ' << reg.begin() << '-' << reg.end() << std::endl);
+		std::cout << (reg.name.has_value() ? reg.name.value() : std::string("(empty)")) << ' ' << reg.flags.asString() << ' ' << reg.begin() << '-' << reg.end() << std::endl;
 	}
 
 	std::cout << "Allocated memory at " << myInteger << std::endl;
