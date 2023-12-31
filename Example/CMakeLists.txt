@@ -1,11 +1,11 @@
 add_subdirectory("../Modules/Local" "LocalMemoryManager")
-# Include C Support
-add_subdirectory("../CWrapper" "CWrapper")
-add_subdirectory("../Modules/Local/CWrapper" "LocalMemoryManagerCWrapper")
 
 add_executable(ExampleCXX "CXX/Main.cpp")
 target_link_libraries(ExampleCXX LocalMemoryManager)
 
+# Include C Support
+add_subdirectory("../CWrapper" "CWrapper")
+add_subdirectory("../Modules/Local/CWrapper" "LocalMemoryManagerCWrapper")
 
 add_executable(ExampleCHeap "C/Heap.c")
 target_link_libraries(ExampleCHeap LocalMemoryManagerCWrapper)
