@@ -125,7 +125,13 @@ void ExternalMemoryManager::read(std::uintptr_t address, void* content, std::siz
 #endif
 	}
 
-	std::ignore = pread(memInterface, content, length, static_cast<off_t>(address));
+	long res = pread(memInterface, content, length, static_cast<off_t>(address));
+#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
+	if(res != length)
+		throw std::runtime_error(strerror(errno));
+#else
+	(void)res;
+#endif
 }
 
 void ExternalMemoryManager::write(std::uintptr_t address, const void* content, std::size_t length) const
@@ -138,7 +144,13 @@ void ExternalMemoryManager::write(std::uintptr_t address, const void* content, s
 #endif
 	}
 
-	std::ignore = pwrite(memInterface, content, length, static_cast<off_t>(address));
+	long res = pwrite(memInterface, content, length, static_cast<off_t>(address));
+#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
+	if(res != length)
+		throw std::runtime_error(strerror(errno));
+#else
+	(void)res;
+#endif
 }
 
 // TODO: This is possible with remote function calls
