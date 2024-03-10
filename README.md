@@ -1,6 +1,7 @@
 # Memory Manager
 
-This is a memory manager that allows memory operations on unreadable/unwritable memory regions under Linux.
+This is a memory manager that allows memory operations on unreadable/unwritable memory regions under Linux.  
+It is also an attempt of making external and internal mod (and game hacking) development uniform and compatible.
 
 ## Features
 
