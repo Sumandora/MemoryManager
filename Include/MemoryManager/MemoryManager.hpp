@@ -132,7 +132,13 @@ namespace MemoryManager {
 		 * @param protection indicated in PROT_ flags from posix
 		 * @return on fail returns MAP_FAILED (posix) otherwise returns pointer to the new memory
 		 */
-		[[nodiscard]] virtual void* allocate(std::uintptr_t address, std::size_t size, int protection) const = 0;
+		[[nodiscard]] virtual std::uintptr_t allocate(std::uintptr_t address, std::size_t size, int protection) const = 0;
+#ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
+		[[nodiscard]] std::uintptr_t allocate(const void* address, std::size_t size, int protection) const
+		{
+			return allocate(reinterpret_cast<std::uintptr_t>(address), size, protection);
+		}
+#endif
 		virtual void deallocate(std::uintptr_t address, std::size_t size) const = 0;
 
 	protected:

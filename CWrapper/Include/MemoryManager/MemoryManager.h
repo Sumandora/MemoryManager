@@ -38,7 +38,7 @@ void mmgr_get_pointer(const void* memorymanager, void* pointer, uintptr_t addres
 const void* mmgr_get_layout(const void* memorymanager);
 void mmgr_update(void* memorymanager);
 
-void* mmgr_allocate(const void* memorymanager, uintptr_t address, size_t size, int protection);
+uintptr_t mmgr_allocate(const void* memorymanager, uintptr_t address, size_t size, int protection);
 void mmgr_deallocate(const void* memorymanager, uintptr_t address, size_t size);
 
 void mmgr_cleanup_manager(void* memorymanager);

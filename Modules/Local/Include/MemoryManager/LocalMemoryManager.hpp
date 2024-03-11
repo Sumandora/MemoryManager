@@ -12,7 +12,7 @@ namespace MemoryManager {
 		[[nodiscard]] bool isRead() const override;
 		[[nodiscard]] bool isWrite() const override;
 
-		[[nodiscard]] void* allocate(std::uintptr_t address, std::size_t size, int protection) const override;
+		[[nodiscard]] std::uintptr_t allocate(std::uintptr_t address, std::size_t size, int protection) const override;
 		void deallocate(std::uintptr_t address, std::size_t size) const override;
 
 	protected:

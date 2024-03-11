@@ -25,13 +25,13 @@ bool LocalMemoryManager::isWrite() const
 	return true;
 }
 
-void* LocalMemoryManager::allocate(std::uintptr_t address, std::size_t size, int protection) const
+std::uintptr_t LocalMemoryManager::allocate(std::uintptr_t address, std::size_t size, int protection) const
 {
 	int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 	void* addr = reinterpret_cast<void*>(address);
 	if(addr != nullptr)
 		flags |= MAP_FIXED_NOREPLACE;
-	return mmap(addr, size, protection, flags, -1, 0);
+	return reinterpret_cast<uintptr_t>(mmap(addr, size, protection, flags, -1, 0));
 }
 
 void LocalMemoryManager::deallocate(std::uintptr_t address, std::size_t size) const

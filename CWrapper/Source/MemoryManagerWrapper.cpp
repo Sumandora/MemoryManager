@@ -14,7 +14,7 @@ void mmgr_update(void* memorymanager) {
 	return static_cast<MemoryManager::MemoryManager*>(memorymanager)->update();
 }
 
-void* mmgr_allocate(const void* memorymanager, uintptr_t address, size_t size, int protection) {
+std::uintptr_t mmgr_allocate(const void* memorymanager, uintptr_t address, size_t size, int protection) {
 	return static_cast<const MemoryManager::MemoryManager*>(memorymanager)->allocate(address, size, protection);
 }
 void mmgr_deallocate(const void* memorymanager, uintptr_t address, size_t size) {

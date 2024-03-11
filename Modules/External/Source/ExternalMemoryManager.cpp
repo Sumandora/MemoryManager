@@ -154,12 +154,13 @@ void ExternalMemoryManager::write(std::uintptr_t address, const void* content, s
 }
 
 // TODO: This is possible with remote function calls
-void* ExternalMemoryManager::allocate(std::uintptr_t address, std::size_t size, int protection) const
+std::uintptr_t ExternalMemoryManager::allocate(std::uintptr_t address, std::size_t size, int protection) const
 {
 #ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
 	throw std::runtime_error("allocate() is unsupported");
+#else
+	return reinterpret_cast<std::uintptr_t>(nullptr);
 #endif
-	return nullptr;
 }
 
 void ExternalMemoryManager::deallocate(std::uintptr_t address, std::size_t size) const

@@ -18,7 +18,7 @@ int main()
 	char memoryManager[mmgr_sizeof_localmmgr];
 	mmgr_construct_local(memoryManager, MEMORYMANAGER_READ_AND_WRITE);
 
-	int* myInteger = (int*)mmap(NULL, sizeof(int), PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+	int* myInteger = (int*)mmgr_allocate(NULL, sizeof(int), PROT_NONE);
 	mmgr_update(memoryManager);
 
 	const void* layout = mmgr_get_layout(memoryManager);
