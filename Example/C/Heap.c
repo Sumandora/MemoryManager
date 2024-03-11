@@ -20,7 +20,7 @@ int main()
 	void* memoryManager = malloc(mmgr_sizeof_localmmgr);
 	mmgr_construct_local(memoryManager, MEMORYMANAGER_READ_AND_WRITE);
 
-	int* myInteger = (int*)mmgr_allocate(NULL, sizeof(int), PROT_NONE;
+	int* myInteger = (int*)mmgr_allocate(memoryManager, NULL, sizeof(int), PROT_NONE);
 	mmgr_update(memoryManager);
 
 	const void* layout = mmgr_get_layout(memoryManager);
