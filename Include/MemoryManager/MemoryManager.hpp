@@ -89,17 +89,33 @@ namespace MemoryManager {
 		 * @param address if set to something that is not a nullptr then indicates the location of the new memory
 		 * @param size may get rounded up to pagesize
 		 * @param protection indicated in PROT_ flags from posix
-		 * @return on fail returns MAP_FAILED (posix) otherwise returns pointer to the new memory
-		 * @throws std::runtime_error if exceptions are enabled and the allocation failed
+		 * @returns pointer to the new memory
 		 */
 		[[nodiscard]] virtual std::uintptr_t allocate(std::uintptr_t address, std::size_t size, int protection) const = 0;
+		/**
+		 * @param address must be aligned to page granularity
+		 */
+		virtual void deallocate(std::uintptr_t address, std::size_t size) const = 0;
+		/**
+		 * Changes protection of the memory page
+		 * @param address must be aligned to page granularity
+		 * @param protection indicated in PROT_ flags from posix
+		 */
+		virtual void protect(std::uintptr_t address, std::size_t size, int protection) const = 0;
 #ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		[[nodiscard]] std::uintptr_t allocate(const void* address, std::size_t size, int protection) const
+		[[nodiscard]] std::uintptr_t allocate(void* address, std::size_t size, int protection) const
 		{
 			return allocate(reinterpret_cast<std::uintptr_t>(address), size, protection);
 		}
+		void deallocate(void* address, std::size_t size) const
+		{
+			deallocate(reinterpret_cast<std::uintptr_t>(address), size);
+		}
+		void protect(void* address, std::size_t size, int protection) const
+		{
+			protect(reinterpret_cast<std::uintptr_t>(address), size, protection);
+		}
 #endif
-		virtual void deallocate(std::uintptr_t address, std::size_t size) const = 0;
 
 		virtual void read(std::uintptr_t address, void* content, std::size_t length) const = 0;
 		virtual void write(std::uintptr_t address, const void* content, std::size_t length) const = 0;
@@ -142,6 +158,11 @@ namespace MemoryManager {
 			write<T>(reinterpret_cast<std::uintptr_t>(address), obj);
 		}
 #endif
+
+		// Indicates if the memory manager requires permissions for reading from memory pages
+		virtual bool requiresPermissionsForReading();
+		// Indicates if the memory manager requires permissions for writing from memory pages
+		virtual bool requiresPermissionsForWriting();
 	};
 
 }

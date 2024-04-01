@@ -51,6 +51,13 @@ void LocalMemoryManager::deallocate(std::uintptr_t address, std::size_t size) co
 		throw std::runtime_error(strerror(errno));
 }
 
+void LocalMemoryManager::protect(std::uintptr_t address, std::size_t size, int protection) const {
+	int res = mprotect(reinterpret_cast<void*>(address), size, protection);
+
+	if(res == -1)
+		throw std::runtime_error(strerror(errno));
+}
+
 void LocalMemoryManager::read(std::uintptr_t address, void* content, std::size_t length) const
 {
 	if (!ExternalMemoryManager::doesRead()) {
@@ -69,4 +76,12 @@ void LocalMemoryManager::write(std::uintptr_t address, const void* content, std:
 	}
 
 	ExternalMemoryManager::write(address, content, length);
+}
+
+bool LocalMemoryManager::requiresPermissionsForReading() {
+	return !doesForceRead();
+}
+
+bool LocalMemoryManager::requiresPermissionsForWriting() {
+	return !doesForceWrite();
 }

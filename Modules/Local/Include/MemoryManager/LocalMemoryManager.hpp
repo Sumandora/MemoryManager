@@ -17,13 +17,19 @@ namespace MemoryManager {
 
 		[[nodiscard]] std::uintptr_t allocate(std::uintptr_t address, std::size_t size, int protection) const override;
 		void deallocate(std::uintptr_t address, std::size_t size) const override;
+		void protect(std::uintptr_t address, std::size_t size, int protection) const override;
 
 		void read(std::uintptr_t address, void *content, std::size_t length) const override;
 		void write(std::uintptr_t address, const void *content, std::size_t length) const override;
 
+		bool requiresPermissionsForReading() override;
+		bool requiresPermissionsForWriting() override;
+
 		using MemoryManager::read;
 		using MemoryManager::write;
 		using MemoryManager::allocate;
+		using MemoryManager::deallocate;
+		using MemoryManager::protect;
 	};
 }
 

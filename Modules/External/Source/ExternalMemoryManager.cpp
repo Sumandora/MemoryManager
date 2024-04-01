@@ -147,3 +147,7 @@ void ExternalMemoryManager::deallocate(std::uintptr_t address, std::size_t size)
 {
 	throw UnException::UnimplementedException{};
 }
+
+void ExternalMemoryManager::protect(std::uintptr_t address, std::size_t size, int protection) const {
+	throw UnException::UnimplementedException{};
+}

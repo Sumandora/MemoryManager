@@ -1,6 +1,14 @@
 #include "MemoryManager/MemoryManager.hpp"
 #include <iostream>
 
+bool MemoryManager::MemoryManager::requiresPermissionsForReading() {
+	return true;
+}
+
+bool MemoryManager::MemoryManager::requiresPermissionsForWriting() {
+	return true;
+}
+
 using namespace MemoryManager;
 
 Flags::Flags(std::array<char, 4> permissions)
