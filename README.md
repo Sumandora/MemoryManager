@@ -22,16 +22,22 @@ For managing local process memory:
 #define MEMORYMANAGER_DEFINE_PTR_WRAPPER
 #include "MemoryManager/LocalMemoryManager.hpp" 
 
+// Create manager
 MemoryManager::LocalMemoryManager memoryManager;
 
-void* ptr = mmap(nullptr, ..., PROT_NONE, ..., 0, 0); 
+// Allocate a memory page
+void* ptr = memoryManager.allocate(nullptr, ..., PROT_NONE);
 
+// Make the memory manager aware of new memory sections
 memoryManager.update();
 
-auto value = memoryManager.getPointer(ptr).read<T>();
+// Read the memory on the new page
+auto value = memoryManager.read<T>(ptr);
+// Write to the memory on the new page
+memoryManager.write<T>(ptr, ...);
 ```
 
-The `MEMORYMANAGER_DEFINE_PTR_WRAPPER` macro can be used to simplify pointer conversion.
+The `MEMORYMANAGER_DEFINE_PTR_WRAPPER` macro can be used to automate void* -> uintptr_t conversions.
 
 ### External Memory Management
 
@@ -41,10 +47,14 @@ For managing external process memory:
 #include "MemoryManager/ExternalMemoryManager.hpp"
 
 MemoryManager::ExternalMemoryManager memoryManager(processId);
+
+// Make the memory manager aware of all memory sections
 memoryManager.update();
 
-auto ptr = memoryManager.getPointer(address);
-T value = ptr.read<T>();
+// Read the memory at "ptr"
+auto value = memoryManager.read<T>(ptr);
+// Write to the memory at "ptr"
+memoryManager.write<T>(ptr, ...);
 ```
 
 ## Implementation
