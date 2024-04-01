@@ -46,6 +46,7 @@ For managing external process memory:
 ```c++
 #include "MemoryManager/ExternalMemoryManager.hpp"
 
+// Create manager
 MemoryManager::ExternalMemoryManager memoryManager(processId);
 
 // Make the memory manager aware of all memory sections
