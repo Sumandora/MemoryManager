@@ -3,22 +3,6 @@
 
 using namespace MemoryManager;
 
-Pointer::Pointer(const MemoryManager* parent, std::uintptr_t address)
-: parent(parent)
-, address(address)
-{
-}
-
-void Pointer::write(const void* content, std::size_t length) const
-{
-	return parent->write(address, content, length);
-}
-
-void Pointer::read(void* content, std::size_t length) const
-{
-	return parent->read(address, content, length);
-}
-
 Flags::Flags(std::array<char, 4> permissions)
 {
 	if(permissions.at(0) == 'r')
@@ -52,4 +36,5 @@ const MemoryRegion* MemoryLayout::findRegion(std::uintptr_t address) const
 	auto& region = *it;
 	if(region.isInside(address))
 		return &region;
+	return nullptr;
 }

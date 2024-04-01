@@ -1,4 +1,4 @@
-#include "../Include/MemoryManager/ExternalMemoryManager.hpp"
+#include "MemoryManager/ExternalMemoryManager.hpp"
 
 #include <fcntl.h>
 #include <fstream>
@@ -7,6 +7,8 @@
 #include <sstream>
 #include <unistd.h>
 #include <utility>
+
+#include "UnException.hpp"
 
 using namespace MemoryManager;
 
@@ -45,22 +47,20 @@ ExternalMemoryManager::ExternalMemoryManager(std::string pid, Mode mode)
 	, mode(mode)
 	, memInterface(openFileHandle(this->pid, mode))
 {
-#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
 	if(mode != Mode::NONE && memInterface == -1)
 		throw std::runtime_error(strerror(errno));
-#endif
 }
 
 ExternalMemoryManager::~ExternalMemoryManager() {
 	close(memInterface);
 }
 
-bool ExternalMemoryManager::isRead() const
+bool ExternalMemoryManager::doesRead() const
 {
 	return mode == Mode::READ || mode == Mode::READ_AND_WRITE;
 }
 
-bool ExternalMemoryManager::isWrite() const
+bool ExternalMemoryManager::doesWrite() const
 {
 	return mode == Mode::WRITE || mode == Mode::READ_AND_WRITE;
 }
@@ -117,55 +117,33 @@ void ExternalMemoryManager::update()
 
 void ExternalMemoryManager::read(std::uintptr_t address, void* content, std::size_t length) const
 {
-	if (!isRead()) {
-#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
-		throw std::logic_error("Read is disabled");
-#else
-		return;
-#endif
+	if (!this->doesRead()) {
+		throw UnException::UnsupportedOperationException{};
 	}
 
 	long res = pread(memInterface, content, length, static_cast<off_t>(address));
-#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
 	if(res != length)
 		throw std::runtime_error(strerror(errno));
-#else
-	(void)res;
-#endif
 }
 
 void ExternalMemoryManager::write(std::uintptr_t address, const void* content, std::size_t length) const
 {
-	if (!isWrite()) {
-#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
-		throw std::logic_error("Write is disabled");
-#else
-		return;
-#endif
+	if (!this->doesWrite()) {
+		throw UnException::UnsupportedOperationException{};
 	}
 
 	long res = pwrite(memInterface, content, length, static_cast<off_t>(address));
-#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
 	if(res != length)
 		throw std::runtime_error(strerror(errno));
-#else
-	(void)res;
-#endif
 }
 
 // TODO: This is possible with remote function calls
 std::uintptr_t ExternalMemoryManager::allocate(std::uintptr_t address, std::size_t size, int protection) const
 {
-#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
-	throw std::runtime_error("allocate() is unsupported");
-#else
-	return reinterpret_cast<std::uintptr_t>(nullptr);
-#endif
+	throw UnException::UnimplementedException{};
 }
 
 void ExternalMemoryManager::deallocate(std::uintptr_t address, std::size_t size) const
 {
-#ifndef EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS
-	throw std::runtime_error("deallocate() is unsupported");
-#endif
+	throw UnException::UnimplementedException{};
 }

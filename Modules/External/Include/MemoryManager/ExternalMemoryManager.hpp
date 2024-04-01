@@ -26,8 +26,8 @@ namespace MemoryManager {
 		explicit ExternalMemoryManager(std::string pid, Mode mode = Mode::READ_AND_WRITE);
 		~ExternalMemoryManager() override;
 
-		[[nodiscard]] virtual bool isRead() const;
-		[[nodiscard]] virtual bool isWrite() const;
+		[[nodiscard]] virtual bool doesRead() const;
+		[[nodiscard]] virtual bool doesWrite() const;
 
 		[[nodiscard]] const MemoryLayout* getLayout() const override;
 		void update() override;
@@ -35,9 +35,12 @@ namespace MemoryManager {
 		[[nodiscard]] std::uintptr_t allocate(std::uintptr_t address, std::size_t size, int protection) const override;
 		void deallocate(std::uintptr_t address, std::size_t size) const override;
 
-	protected:
 		void read(std::uintptr_t address, void *content, std::size_t length) const override;
 		void write(std::uintptr_t address, const void *content, std::size_t length) const override;
+
+		using MemoryManager::read;
+		using MemoryManager::write;
+		using MemoryManager::allocate;
 	};
 }
 

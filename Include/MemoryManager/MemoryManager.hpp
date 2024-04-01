@@ -11,41 +11,6 @@
 namespace MemoryManager {
 	class MemoryManager;
 
-	class Pointer {
-		const MemoryManager* parent;
-		std::uintptr_t address;
-
-	public:
-		Pointer(const MemoryManager* parent, std::uintptr_t address);
-
-		void read(void* result, std::size_t length) const;
-		void write(const void* content, std::size_t length) const;
-
-		template <typename T, bool UseHeap = (sizeof(T) > sizeof(T*))> // If the structure you are copying is big then returning it would yield a second copy.
-		std::conditional_t<UseHeap, T*, T> read()
-		{
-			if constexpr (UseHeap) {
-				T* obj = new T;
-				read(obj, sizeof(T));
-				return obj;
-			} else {
-				T obj;
-				read(&obj, sizeof(T));
-				return obj;
-			}
-		}
-
-		template <typename T>
-		void write(const T& obj)
-		{
-			write(&obj, sizeof(obj));
-		}
-
-		constexpr operator std::uintptr_t () const {
-			return address;
-		}
-	};
-
 	class Flags : public std::bitset<4> {
 	public:
 		explicit Flags(std::array<char, 4> permissions); // Parses a "rwxp" string from the /proc/$/maps interface
@@ -61,12 +26,11 @@ namespace MemoryManager {
 	class MemoryRegion {
 		const MemoryManager* parent;
 		std::uintptr_t beginAddress;
-
-	public:
 		std::size_t length;
 		Flags flags;
 		std::optional<std::string> name;
 
+	public:
 		MemoryRegion(const MemoryManager* parent, std::uintptr_t beginAddress, std::size_t length, Flags flags, std::optional<std::string> name)
 			: parent(parent)
 			, beginAddress(beginAddress)
@@ -76,8 +40,11 @@ namespace MemoryManager {
 		{
 		}
 
-		[[nodiscard]] Pointer begin() const { return { parent, beginAddress }; }
-		[[nodiscard]] Pointer end() const { return { parent, beginAddress + length }; }
+		[[nodiscard]] std::uintptr_t getBeginAddress() const { return beginAddress; }
+		[[nodiscard]] std::size_t getLength() const { return length; }
+		[[nodiscard]] std::uintptr_t getEndAddress() const { return beginAddress + length; }
+		[[nodiscard]] const Flags& getFlags() const { return flags; }
+		[[nodiscard]] const std::optional<std::string>& getName() const { return name; }
 
 		[[nodiscard]] bool isInside(std::uintptr_t address) const
 		{
@@ -114,23 +81,16 @@ namespace MemoryManager {
 	public:
 		virtual ~MemoryManager() = default;
 
-		[[nodiscard]] Pointer getPointer(std::uintptr_t address) const { return { this, address }; }
-#ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		[[nodiscard]] Pointer getPointer(const void* address) const
-		{
-			return getPointer(reinterpret_cast<std::uintptr_t>(address));
-		}
-#endif
-
 		[[nodiscard]] virtual const MemoryLayout* getLayout() const = 0;
 		virtual void update() = 0; // Warning: Calling this will invalidate all references to MemoryRegions
 
 		/**
-		 * Allocates a memory block TODO: std::allocator?
+		 * Allocates a memory block
 		 * @param address if set to something that is not a nullptr then indicates the location of the new memory
 		 * @param size may get rounded up to pagesize
 		 * @param protection indicated in PROT_ flags from posix
 		 * @return on fail returns MAP_FAILED (posix) otherwise returns pointer to the new memory
+		 * @throws std::runtime_error if exceptions are enabled and the allocation failed
 		 */
 		[[nodiscard]] virtual std::uintptr_t allocate(std::uintptr_t address, std::size_t size, int protection) const = 0;
 #ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
@@ -141,11 +101,47 @@ namespace MemoryManager {
 #endif
 		virtual void deallocate(std::uintptr_t address, std::size_t size) const = 0;
 
-	protected:
-		friend Pointer;
-
 		virtual void read(std::uintptr_t address, void* content, std::size_t length) const = 0;
 		virtual void write(std::uintptr_t address, const void* content, std::size_t length) const = 0;
+
+		template <typename T>
+		void read(std::uintptr_t address, T* content)
+		{
+			read(address, content, sizeof(T));
+		}
+
+		template <typename T>
+		T read(std::uintptr_t address)
+		{
+			T obj;
+			read(address, &obj, sizeof(T));
+			return obj;
+		}
+
+		template <typename T>
+		void write(std::uintptr_t address, const T& obj)
+		{
+			write(address, &obj, sizeof(obj));
+		}
+#ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
+		template <typename T>
+		void read(const void* address, T* content)
+		{
+			read<T>(reinterpret_cast<std::uintptr_t>(address), content);
+		}
+
+		template <typename T>
+		T read(const void* address)
+		{
+			return read<T>(reinterpret_cast<std::uintptr_t>(address));
+		}
+
+		template <typename T>
+		void write(void* address, const T& obj)
+		{
+			write<T>(reinterpret_cast<std::uintptr_t>(address), obj);
+		}
+#endif
 	};
 
 }

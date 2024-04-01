@@ -8,7 +8,13 @@ target_include_directories(ExternalMemoryManager PUBLIC "${PROJECT_SOURCE_DIR}/I
 target_compile_features(ExternalMemoryManager PRIVATE cxx_std_20)
 target_compile_options(ExternalMemoryManager PRIVATE "-Ofast")
 
-target_link_libraries(ExternalMemoryManager MemoryManager)
+include("FetchContent")
 
-# Use this to disable exceptions
-#target_compile_definitions(ExternalMemoryManager PUBLIC EXTERNALMEMORYMANAGER_DISABLE_EXCEPTIONS)
+FetchContent_Declare(UnException
+        GIT_REPOSITORY https://github.com/Sumandora/UnException
+        GIT_PROGRESS TRUE
+        GIT_TAG 3d64540)
+FetchContent_MakeAvailable(UnException)
+target_link_libraries(ExternalMemoryManager UnException)
+
+target_link_libraries(ExternalMemoryManager MemoryManager)
