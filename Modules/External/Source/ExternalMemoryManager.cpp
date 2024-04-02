@@ -142,7 +142,7 @@ void ExternalMemoryManager::write(std::uintptr_t address, const void* content, s
 }
 
 // TODO: This is possible with remote function calls
-std::uintptr_t ExternalMemoryManager::allocate(std::uintptr_t address, std::size_t size, int protection) const
+std::uintptr_t ExternalMemoryManager::allocate(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const
 {
 	throw UnException::UnimplementedException{};
 }
@@ -152,6 +152,6 @@ void ExternalMemoryManager::deallocate(std::uintptr_t address, std::size_t size)
 	throw UnException::UnimplementedException{};
 }
 
-void ExternalMemoryManager::protect(std::uintptr_t address, std::size_t size, int protection) const {
+void ExternalMemoryManager::protect(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const {
 	throw UnException::UnimplementedException{};
 }

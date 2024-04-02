@@ -1,6 +1,5 @@
 #include <cassert>
 #include <iostream>
-#include <sys/mman.h>
 
 #define MEMORYMANAGER_DEFINE_PTR_WRAPPER
 #include "MemoryManager/LocalMemoryManager.hpp"
@@ -9,7 +8,7 @@ int main()
 {
 	MemoryManager::LocalMemoryManager memoryManager{ MemoryManager::LocalMemoryManager::Mode::READ_AND_WRITE };
 
-	int* myInteger = reinterpret_cast<int*>(memoryManager.allocate(nullptr, sizeof(int), PROT_NONE));
+	int* myInteger = reinterpret_cast<int*>(memoryManager.allocate(nullptr, sizeof(int), { false, false, false } /*No permissions*/));
 	memoryManager.update();
 
 	std::cout << std::hex;

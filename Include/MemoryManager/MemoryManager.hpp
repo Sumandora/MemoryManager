@@ -11,6 +11,19 @@
 namespace MemoryManager {
 	class MemoryManager;
 
+	class ProtectionFlags : public std::bitset<3> { // Flags#private may not be applicable for certain tasks like allocation or protection. Use this class instead.
+	public:
+		ProtectionFlags(
+			bool readable,
+			bool writable,
+			bool executable
+		);
+
+		[[nodiscard]] constexpr bool isReadable() const { return (*this)[0]; }
+		[[nodiscard]] constexpr bool isWriteable() const { return (*this)[1]; }
+		[[nodiscard]] constexpr bool isExecutable() const { return (*this)[2]; }
+	};
+
 	class Flags : public std::bitset<4> {
 	public:
 		explicit Flags(std::array<char, 4> permissions); // Parses a "rwxp" string from the /proc/$/maps interface
@@ -90,10 +103,9 @@ namespace MemoryManager {
 		 * Allocates a memory block
 		 * @param address if set to something that is not a nullptr then indicates the location of the new memory, in that case address must be aligned to page granularity
 		 * @param size may get rounded up to pagesize
-		 * @param protection indicated in PROT_ flags from posix
 		 * @returns pointer to the new memory
 		 */
-		[[nodiscard]] virtual std::uintptr_t allocate(std::uintptr_t address, std::size_t size, int protection) const = 0;
+		[[nodiscard]] virtual std::uintptr_t allocate(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const = 0;
 		/**
 		 * @param address must be aligned to page granularity
 		 */
@@ -101,11 +113,10 @@ namespace MemoryManager {
 		/**
 		 * Changes protection of the memory page
 		 * @param address must be aligned to page granularity
-		 * @param protection indicated in PROT_ flags from posix
 		 */
-		virtual void protect(std::uintptr_t address, std::size_t size, int protection) const = 0;
+		virtual void protect(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const = 0;
 #ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		[[nodiscard]] std::uintptr_t allocate(void* address, std::size_t size, int protection) const
+		[[nodiscard]] std::uintptr_t allocate(void* address, std::size_t size, ProtectionFlags protection) const
 		{
 			return allocate(reinterpret_cast<std::uintptr_t>(address), size, protection);
 		}
@@ -162,9 +173,9 @@ namespace MemoryManager {
 #endif
 
 		// Indicates if the memory manager requires permissions for reading from memory pages
-		virtual bool requiresPermissionsForReading() const;
+		[[nodiscard]] virtual bool requiresPermissionsForReading() const;
 		// Indicates if the memory manager requires permissions for writing from memory pages
-		virtual bool requiresPermissionsForWriting() const;
+		[[nodiscard]] virtual bool requiresPermissionsForWriting() const;
 	};
 
 }

@@ -1,26 +1,28 @@
 #include "MemoryManager/MemoryManager.hpp"
 #include <iostream>
 
-bool MemoryManager::MemoryManager::requiresPermissionsForReading() {
+bool MemoryManager::MemoryManager::requiresPermissionsForReading() const {
 	return true;
 }
 
-bool MemoryManager::MemoryManager::requiresPermissionsForWriting() {
+bool MemoryManager::MemoryManager::requiresPermissionsForWriting() const {
 	return true;
 }
 
 using namespace MemoryManager;
 
+ProtectionFlags::ProtectionFlags(bool readable, bool writable, bool executable) {
+	set(0, readable);
+	set(1, writable);
+	set(2, executable);
+}
+
 Flags::Flags(std::array<char, 4> permissions)
 {
-	if(permissions.at(0) == 'r')
-		set(0, true);
-	if(permissions.at(1) == 'w')
-		set(1, true);
-	if(permissions.at(2) == 'x')
-		set(2, true);
-	if(permissions.at(3) == 'p')
-		set(3, true);
+	set(0, permissions.at(0) == 'r');
+	set(1, permissions.at(1) == 'w');
+	set(2, permissions.at(2) == 'x');
+	set(3, permissions.at(3) == 'p');
 }
 
 std::string Flags::asString() const
