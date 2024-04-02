@@ -84,9 +84,11 @@ namespace MemoryManager {
 		[[nodiscard]] virtual const MemoryLayout* getLayout() const = 0;
 		virtual void update() = 0; // Warning: Calling this will invalidate all references to MemoryRegions
 
+		[[nodiscard]] virtual std::size_t getPageGranularity() const = 0;
+
 		/**
 		 * Allocates a memory block
-		 * @param address if set to something that is not a nullptr then indicates the location of the new memory
+		 * @param address if set to something that is not a nullptr then indicates the location of the new memory, in that case address must be aligned to page granularity
 		 * @param size may get rounded up to pagesize
 		 * @param protection indicated in PROT_ flags from posix
 		 * @returns pointer to the new memory
@@ -121,13 +123,13 @@ namespace MemoryManager {
 		virtual void write(std::uintptr_t address, const void* content, std::size_t length) const = 0;
 
 		template <typename T>
-		void read(std::uintptr_t address, T* content)
+		void read(std::uintptr_t address, T* content) const
 		{
 			read(address, content, sizeof(T));
 		}
 
 		template <typename T>
-		T read(std::uintptr_t address)
+		T read(std::uintptr_t address) const
 		{
 			T obj;
 			read(address, &obj, sizeof(T));
@@ -135,34 +137,34 @@ namespace MemoryManager {
 		}
 
 		template <typename T>
-		void write(std::uintptr_t address, const T& obj)
+		void write(std::uintptr_t address, const T& obj) const
 		{
 			write(address, &obj, sizeof(obj));
 		}
 #ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
 		template <typename T>
-		void read(const void* address, T* content)
+		void read(const void* address, T* content) const
 		{
 			read<T>(reinterpret_cast<std::uintptr_t>(address), content);
 		}
 
 		template <typename T>
-		T read(const void* address)
+		T read(const void* address) const
 		{
 			return read<T>(reinterpret_cast<std::uintptr_t>(address));
 		}
 
 		template <typename T>
-		void write(void* address, const T& obj)
+		void write(void* address, const T& obj) const
 		{
 			write<T>(reinterpret_cast<std::uintptr_t>(address), obj);
 		}
 #endif
 
 		// Indicates if the memory manager requires permissions for reading from memory pages
-		virtual bool requiresPermissionsForReading();
+		virtual bool requiresPermissionsForReading() const;
 		// Indicates if the memory manager requires permissions for writing from memory pages
-		virtual bool requiresPermissionsForWriting();
+		virtual bool requiresPermissionsForWriting() const;
 	};
 
 }

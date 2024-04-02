@@ -32,6 +32,8 @@ namespace MemoryManager {
 		[[nodiscard]] const MemoryLayout* getLayout() const override;
 		void update() override;
 
+		[[nodiscard]] std::size_t getPageGranularity() const override;
+
 		[[nodiscard]] std::uintptr_t allocate(std::uintptr_t address, std::size_t size, int protection) const override;
 		void deallocate(std::uintptr_t address, std::size_t size) const override;
 		void protect(std::uintptr_t address, std::size_t size, int protection) const override;

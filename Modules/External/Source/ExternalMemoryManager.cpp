@@ -115,6 +115,10 @@ void ExternalMemoryManager::update()
 	layout = newLayout;
 }
 
+std::size_t ExternalMemoryManager::getPageGranularity() const {
+	return getpagesize(); // The page size could in theory be a different one for each process, but under Linux that doesn't happen to my knowledge.
+}
+
 void ExternalMemoryManager::read(std::uintptr_t address, void* content, std::size_t length) const
 {
 	if (!this->doesRead()) {
