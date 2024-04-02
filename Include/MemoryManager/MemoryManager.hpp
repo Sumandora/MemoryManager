@@ -124,7 +124,7 @@ namespace MemoryManager {
 		{
 			deallocate(reinterpret_cast<std::uintptr_t>(address), size);
 		}
-		void protect(void* address, std::size_t size, int protection) const
+		void protect(void* address, std::size_t size, ProtectionFlags protection) const
 		{
 			protect(reinterpret_cast<std::uintptr_t>(address), size, protection);
 		}
