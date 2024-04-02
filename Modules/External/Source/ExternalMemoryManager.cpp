@@ -1,12 +1,11 @@
 #include "MemoryManager/ExternalMemoryManager.hpp"
 
+#include <cstring>
 #include <fcntl.h>
 #include <fstream>
-#include <cstring>
 #include <limits>
 #include <sstream>
 #include <unistd.h>
-#include <utility>
 
 #include "UnException.hpp"
 
@@ -14,13 +13,11 @@ using namespace MemoryManager;
 
 constexpr int invalidFileHandle = -1;
 
-static int openFileHandle(const std::string& pid, ExternalMemoryManager::Mode mode) {
-	using Mode = ExternalMemoryManager::Mode;
-	if(mode == Mode::NONE)
-		return invalidFileHandle;
-
+static int openFileHandle(const std::string& pid, ExternalMemoryManager::Mode mode)
+{
 	int flag;
 	switch (mode) {
+	using Mode = ExternalMemoryManager::Mode;
 	case Mode::READ:
 		flag = O_RDONLY;
 		break;
@@ -42,16 +39,17 @@ ExternalMemoryManager::ExternalMemoryManager(std::size_t pid, Mode mode)
 {
 }
 
-ExternalMemoryManager::ExternalMemoryManager(std::string pid, Mode mode)
-	: pid(std::move(pid))
+ExternalMemoryManager::ExternalMemoryManager(const std::string& pid, Mode mode)
+	: pid(pid)
 	, mode(mode)
-	, memInterface(openFileHandle(this->pid, mode))
+	, memInterface(openFileHandle(pid, mode))
 {
-	if(mode != Mode::NONE && memInterface == -1)
+	if (mode != Mode::NONE && memInterface == invalidFileHandle)
 		throw std::runtime_error(strerror(errno));
 }
 
-ExternalMemoryManager::~ExternalMemoryManager() {
+ExternalMemoryManager::~ExternalMemoryManager()
+{
 	close(memInterface);
 }
 
@@ -84,8 +82,8 @@ void ExternalMemoryManager::update()
 
 		std::stringstream ss{ line };
 
-		std::uint64_t begin;
-		std::uint64_t end;
+		std::uintptr_t begin;
+		std::uintptr_t end;
 		std::array<char, 4> permissions{};
 
 		ss >> std::hex >> begin;
@@ -96,8 +94,8 @@ void ExternalMemoryManager::update()
 		ss.ignore(std::numeric_limits<std::streamsize>::max(), '/');
 
 		std::optional<std::string> name;
-		if(!ss.eof()) {
-			name = {'/'};
+		if (!ss.eof()) {
+			name = { '/' };
 			std::string token;
 			while (!ss.eof()) {
 				ss >> token;
@@ -115,7 +113,8 @@ void ExternalMemoryManager::update()
 	layout = newLayout;
 }
 
-std::size_t ExternalMemoryManager::getPageGranularity() const {
+std::size_t ExternalMemoryManager::getPageGranularity() const
+{
 	return getpagesize(); // The page size could in theory be a different one for each process, but under Linux that doesn't happen to my knowledge.
 }
 
@@ -125,8 +124,13 @@ void ExternalMemoryManager::read(std::uintptr_t address, void* content, std::siz
 		throw UnException::UnsupportedOperationException{};
 	}
 
+	// Magic
+#ifdef __GLIBC__
+	long res = pread64(memInterface, content, length, static_cast<off64_t>(address));
+#else
 	long res = pread(memInterface, content, length, static_cast<off_t>(address));
-	if(res != length)
+#endif
+	if (res != length)
 		throw std::runtime_error(strerror(errno));
 }
 
@@ -136,8 +140,13 @@ void ExternalMemoryManager::write(std::uintptr_t address, const void* content, s
 		throw UnException::UnsupportedOperationException{};
 	}
 
+	// Magic
+	#ifdef __GLIBC__
+	long res = pwrite64(memInterface, content, length, static_cast<off64_t>(address));
+	#else
 	long res = pwrite(memInterface, content, length, static_cast<off_t>(address));
-	if(res != length)
+	#endif
+	if (res != length)
 		throw std::runtime_error(strerror(errno));
 }
 
@@ -152,6 +161,7 @@ void ExternalMemoryManager::deallocate(std::uintptr_t address, std::size_t size)
 	throw UnException::UnimplementedException{};
 }
 
-void ExternalMemoryManager::protect(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const {
+void ExternalMemoryManager::protect(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const
+{
 	throw UnException::UnimplementedException{};
 }

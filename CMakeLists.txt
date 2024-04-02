@@ -6,9 +6,9 @@ project(MemoryManager)
 add_library(MemoryManager STATIC
 	"${PROJECT_SOURCE_DIR}/Source/MemoryManager.cpp"
 )
+
 target_include_directories(MemoryManager PUBLIC "${PROJECT_SOURCE_DIR}/Include")
 target_compile_features(MemoryManager PRIVATE cxx_std_20)
-target_compile_options(MemoryManager PRIVATE "-Ofast")
 
 if(PROJECT_IS_TOP_LEVEL)
 	enable_testing()

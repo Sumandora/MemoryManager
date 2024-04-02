@@ -23,7 +23,7 @@ namespace MemoryManager {
 
 	public:
 		explicit ExternalMemoryManager(std::size_t pid, Mode mode = Mode::READ_AND_WRITE);
-		explicit ExternalMemoryManager(std::string pid, Mode mode = Mode::READ_AND_WRITE);
+		explicit ExternalMemoryManager(const std::string& pid, Mode mode = Mode::READ_AND_WRITE);
 		~ExternalMemoryManager() override;
 
 		[[nodiscard]] virtual bool doesRead() const;
