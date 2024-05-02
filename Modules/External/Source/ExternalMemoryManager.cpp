@@ -87,25 +87,34 @@ void ExternalMemoryManager::update()
 		std::array<char, 4> permissions{};
 
 		ss >> std::hex >> begin;
-		ss.ignore(1);
-		ss >> end;
-		ss.ignore(1);
+		ss.ignore(1); // space
+		ss >> end >> std::dec;
+		ss.ignore(1); // space
 		ss.read(permissions.begin(), 4);
-		ss.ignore(std::numeric_limits<std::streamsize>::max(), '/');
+		ss.ignore(1 /*space*/ + 8 /*offset*/ + 1 /*space*/ + 2 /*major dev*/ + 1 /*colon*/ + 2 /*minor dev*/ + 1 /*space*/);
+		ss.ignore(std::numeric_limits<std::streamsize>::max(), ' '); // skip over inode
+		// skip over spaces
+		while(!ss.eof() && ss.peek() == ' ')
+			ss.ignore(1);
 
-		std::optional<std::string> name;
+		std::optional<std::string> name = std::nullopt;
+		bool special = false;
 		if (!ss.eof()) {
-			name = { '/' };
+			name = { static_cast<char>(ss.get()) };
+			if ((*name)[0] == '[') {
+				special = true;
+			}
 			std::string token;
 			while (!ss.eof()) {
 				ss >> token;
-				if (token == "(deleted)")
+				if (token.empty() || token == "(deleted)")
 					break;
 				*name += token + " ";
 			}
+			name->pop_back(); // the space
 		}
 
-		newLayout.insert(MemoryRegion{ this, begin, end - begin, Flags{ permissions }, name });
+		newLayout.insert(MemoryRegion{ this, begin, end - begin, Flags{ permissions }, name, special });
 	}
 
 	fileStream.close();
@@ -141,11 +150,11 @@ void ExternalMemoryManager::write(std::uintptr_t address, const void* content, s
 	}
 
 	// Magic
-	#ifdef __GLIBC__
+#ifdef __GLIBC__
 	long res = pwrite64(memInterface, content, length, static_cast<off64_t>(address));
-	#else
+#else
 	long res = pwrite(memInterface, content, length, static_cast<off_t>(address));
-	#endif
+#endif
 	if (res != length)
 		throw std::runtime_error(strerror(errno));
 }

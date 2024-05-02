@@ -42,14 +42,16 @@ namespace MemoryManager {
 		std::size_t length;
 		Flags flags;
 		std::optional<std::string> name;
+		bool special; // On Linux those include mappings which have custom names e.g. initial heap, initial stack etc...
 
 	public:
-		MemoryRegion(const MemoryManager* parent, std::uintptr_t beginAddress, std::size_t length, Flags flags, std::optional<std::string> name)
+		MemoryRegion(const MemoryManager* parent, std::uintptr_t beginAddress, std::size_t length, Flags flags, std::optional<std::string> name, bool special)
 			: parent(parent)
 			, beginAddress(beginAddress)
 			, length(length)
 			, flags(flags)
 			, name(std::move(name))
+			, special(special)
 		{
 		}
 
@@ -58,6 +60,7 @@ namespace MemoryManager {
 		[[nodiscard]] std::uintptr_t getEndAddress() const { return beginAddress + length; }
 		[[nodiscard]] const Flags& getFlags() const { return flags; }
 		[[nodiscard]] const std::optional<std::string>& getName() const { return name; }
+		[[nodiscard]] bool isSpecial() const { return special; }
 
 		[[nodiscard]] bool isInside(std::uintptr_t address) const
 		{

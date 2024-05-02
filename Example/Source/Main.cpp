@@ -13,7 +13,7 @@ int main()
 
 	std::cout << std::hex;
 	for(const MemoryManager::MemoryRegion& reg : *memoryManager.getLayout()) {
-		std::cout << (reg.getName().has_value() ? reg.getName().value() : std::string("(empty)")) << ' ' << reg.getFlags().asString() << ' ' << reg.getBeginAddress() << '-' << reg.getEndAddress() << std::endl;
+		std::cout << (reg.getName().has_value() ? reg.getName().value() : std::string("(empty)")) << ' ' << reg.getFlags().asString() << ' ' << reg.getBeginAddress() << '-' << reg.getEndAddress() << (reg.isSpecial() ? " [special]" : "") << std::endl;
 	}
 
 	std::cout << "Allocated memory at " << myInteger << std::endl;
