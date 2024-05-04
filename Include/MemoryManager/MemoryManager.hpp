@@ -5,6 +5,7 @@
 #include <bitset>
 #include <compare>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <set>
 
@@ -34,6 +35,104 @@ namespace MemoryManager {
 		[[nodiscard]] constexpr bool isPrivate() const { return (*this)[3]; }
 
 		[[nodiscard]] std::string asString() const;
+	};
+
+	class CachedRegion {
+		std::uintptr_t remoteAddress;
+		std::size_t length;
+		std::unique_ptr<std::byte[]> bytes;
+		friend class MemoryRegion;
+
+	public:
+		CachedRegion(std::uintptr_t remoteAddress, std::size_t length)
+			: remoteAddress(remoteAddress)
+			, length(length)
+			, bytes(std::unique_ptr<std::byte[]>{ new std::byte[length] })
+		{
+		}
+
+		// This is not really good, but it's the best I can do here to support STL code that wants to take the address of the iterated type
+		struct CachedByte {
+			std::byte value;
+			std::byte* pointer;
+
+			std::byte* operator&() const {
+				return pointer;
+			}
+
+			operator std::byte() const {
+				return value;
+			}
+		};
+
+		[[nodiscard]] CachedByte operator[](std::size_t i) const {
+			return { bytes[i], reinterpret_cast<std::byte*>(remoteAddress + i) };
+		}
+
+		[[nodiscard]] std::uintptr_t getRemoteAddress() const { return remoteAddress; }
+		[[nodiscard]] std::size_t getLength() const { return length; }
+
+		class CacheIterator {
+			const CachedRegion* parent;
+			std::size_t index;
+
+		public:
+			CacheIterator() : parent(nullptr), index(0) {}
+
+			CacheIterator(const CachedRegion* parent, std::size_t index)
+				: parent(parent)
+				, index(index)
+			{
+			}
+			using iterator_category = std::bidirectional_iterator_tag;
+			using value_type = CachedByte;
+			using reference = CachedByte&;
+			using pointer = std::byte*;
+			using difference_type = std::ptrdiff_t;
+
+			CachedByte operator*() const {
+				return (*parent)[index];
+			}
+			std::byte* operator->() const {
+				return &(*parent)[index];
+			}
+			CacheIterator& operator++() {
+				index++;
+				return *this;
+			}
+			CacheIterator& operator--() {
+				index--;
+				return *this;
+			}
+			CacheIterator operator++(int) {
+				CacheIterator it = *this;
+				index++;
+				return it;
+			}
+			CacheIterator operator--(int) {
+				CacheIterator it = *this;
+				index--;
+				return it;
+			}
+
+			bool operator==(const CacheIterator& rhs) const {
+				return index == rhs.index;
+			}
+		};
+
+		[[nodiscard]] CacheIterator cbegin() const {
+			return { this, 0 };
+		}
+		[[nodiscard]] CacheIterator cend() const {
+			return { this, getLength() };
+		}
+
+		[[nodiscard]] std::reverse_iterator<CacheIterator> crbegin() const {
+			return std::make_reverse_iterator(cend());
+		}
+		[[nodiscard]] std::reverse_iterator<CacheIterator> crend() const {
+			return std::make_reverse_iterator(cbegin());
+		}
 	};
 
 	class MemoryRegion {
@@ -66,6 +165,9 @@ namespace MemoryManager {
 		{
 			return address >= beginAddress && address < beginAddress + length;
 		}
+
+		// Calling this on sections that are not readable by whatever means will cause undefined behavior
+		[[nodiscard]] CachedRegion cache() const;
 
 		struct Compare {
 			using is_transparent = void;

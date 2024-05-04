@@ -1,5 +1,4 @@
 #include "MemoryManager/MemoryManager.hpp"
-#include <iostream>
 
 bool MemoryManager::MemoryManager::requiresPermissionsForReading() const {
 	return true;
@@ -33,6 +32,13 @@ std::string Flags::asString() const
 	string += test(2) ? 'x' : '-';
 	string += test(3) ? 'p' : '-';
 	return string;
+}
+
+CachedRegion MemoryRegion::cache() const
+{
+	CachedRegion region{ beginAddress, length };
+	parent->read(beginAddress, region.bytes.get(), length);
+	return region;
 }
 
 const MemoryRegion* MemoryLayout::findRegion(std::uintptr_t address) const
