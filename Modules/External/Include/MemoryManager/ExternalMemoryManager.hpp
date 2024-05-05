@@ -41,6 +41,8 @@ namespace MemoryManager {
 		void read(std::uintptr_t address, void *content, std::size_t length) const override;
 		void write(std::uintptr_t address, const void *content, std::size_t length) const override;
 
+		[[nodiscard]] bool isRemoteAddressSpace() const override;
+
 		using MemoryManager::read;
 		using MemoryManager::write;
 		using MemoryManager::allocate;

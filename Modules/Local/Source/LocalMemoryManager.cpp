@@ -98,3 +98,7 @@ bool LocalMemoryManager::requiresPermissionsForReading() const {
 bool LocalMemoryManager::requiresPermissionsForWriting() const {
 	return !doesForceWrite();
 }
+
+bool LocalMemoryManager::isRemoteAddressSpace() const {
+	return doesForceRead();
+}

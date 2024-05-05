@@ -25,6 +25,8 @@ namespace MemoryManager {
 		[[nodiscard]] bool requiresPermissionsForReading() const override;
 		[[nodiscard]] bool requiresPermissionsForWriting() const override;
 
+		[[nodiscard]] bool isRemoteAddressSpace() const override;
+
 		using MemoryManager::read;
 		using MemoryManager::write;
 		using MemoryManager::allocate;

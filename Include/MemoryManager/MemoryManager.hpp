@@ -248,10 +248,20 @@ namespace MemoryManager {
 		}
 #endif
 
-		// Indicates if the memory manager requires permissions for reading from memory pages
+		/**
+		 * Indicates if the memory manager requires permissions for reading from memory pages
+		 */
 		[[nodiscard]] virtual bool requiresPermissionsForReading() const;
-		// Indicates if the memory manager requires permissions for writing from memory pages
+		/**
+		 * Indicates if the memory manager requires permissions for writing from memory pages
+		 */
 		[[nodiscard]] virtual bool requiresPermissionsForWriting() const;
+
+		/**
+		 * Indicates whether the memory manager is fetching memory from a remote target.
+		 * If returning true, this basically states that memory doesn't need to be copied into the local address space, but can be read by dereferencing pointers
+		 */
+		 [[nodiscard]] virtual bool isRemoteAddressSpace() const = 0;
 	};
 
 }

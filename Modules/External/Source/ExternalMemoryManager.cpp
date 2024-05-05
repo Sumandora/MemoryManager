@@ -174,3 +174,8 @@ void ExternalMemoryManager::protect(std::uintptr_t address, std::size_t size, Pr
 {
 	throw UnException::UnimplementedException{};
 }
+
+bool ExternalMemoryManager::isRemoteAddressSpace() const
+{
+	return true;
+}
