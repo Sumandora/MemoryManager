@@ -14,6 +14,7 @@ namespace MemoryManager {
 
 	class ProtectionFlags : public std::bitset<3> { // Flags#private may not be applicable for certain tasks like allocation or protection. Use this class instead.
 	public:
+		explicit ProtectionFlags(std::array<char, 3> permissions);
 		ProtectionFlags(
 			bool readable,
 			bool writable,
@@ -23,11 +24,19 @@ namespace MemoryManager {
 		[[nodiscard]] constexpr bool isReadable() const { return (*this)[0]; }
 		[[nodiscard]] constexpr bool isWriteable() const { return (*this)[1]; }
 		[[nodiscard]] constexpr bool isExecutable() const { return (*this)[2]; }
+
+		bool operator==(const class Flags& flags) const;
 	};
 
 	class Flags : public std::bitset<4> {
 	public:
 		explicit Flags(std::array<char, 4> permissions); // Parses a "rwxp" string from the /proc/$/maps interface
+		Flags(
+			bool readable,
+			bool writable,
+			bool executable,
+			bool _private
+		);
 
 		[[nodiscard]] constexpr bool isReadable() const { return (*this)[0]; }
 		[[nodiscard]] constexpr bool isWriteable() const { return (*this)[1]; }
@@ -35,6 +44,8 @@ namespace MemoryManager {
 		[[nodiscard]] constexpr bool isPrivate() const { return (*this)[3]; }
 
 		[[nodiscard]] std::string asString() const;
+
+		bool operator==(const ProtectionFlags& protectionFlags) const;
 	};
 
 	class CachedRegion {
