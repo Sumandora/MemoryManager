@@ -5,6 +5,12 @@ include_guard()
 project(MemoryManager)
 add_library(MemoryManager STATIC
 	"${PROJECT_SOURCE_DIR}/Source/MemoryManager.cpp"
+	"${PROJECT_SOURCE_DIR}/Source/MemoryLayout.cpp"
+	"${PROJECT_SOURCE_DIR}/Source/MemoryRegion.cpp"
+	"${PROJECT_SOURCE_DIR}/Source/Flags.cpp"
+	"${PROJECT_SOURCE_DIR}/Source/ProtectionFlags.cpp"
+	"${PROJECT_SOURCE_DIR}/Source/Cache/CacheRegion.cpp"
+	"${PROJECT_SOURCE_DIR}/Source/Cache/CacheIterator.cpp"
 )
 
 target_include_directories(MemoryManager PUBLIC "${PROJECT_SOURCE_DIR}/Include")

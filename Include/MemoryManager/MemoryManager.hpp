@@ -24,8 +24,6 @@ namespace MemoryManager {
 		[[nodiscard]] constexpr bool isReadable() const { return (*this)[0]; }
 		[[nodiscard]] constexpr bool isWriteable() const { return (*this)[1]; }
 		[[nodiscard]] constexpr bool isExecutable() const { return (*this)[2]; }
-
-		bool operator==(const class Flags& flags) const;
 	};
 
 	class Flags : public std::bitset<4> {
@@ -44,9 +42,9 @@ namespace MemoryManager {
 		[[nodiscard]] constexpr bool isPrivate() const { return (*this)[3]; }
 
 		[[nodiscard]] std::string asString() const;
-
-		bool operator==(const ProtectionFlags& protectionFlags) const;
 	};
+
+	bool operator==(const class Flags& flags, const ProtectionFlags& protectionFlags);
 
 	class CachedRegion {
 		std::uintptr_t remoteAddress;
@@ -55,30 +53,18 @@ namespace MemoryManager {
 		friend class MemoryRegion;
 
 	public:
-		CachedRegion(std::uintptr_t remoteAddress, std::size_t length)
-			: remoteAddress(remoteAddress)
-			, length(length)
-			, bytes(std::unique_ptr<std::byte[]>{ new std::byte[length] })
-		{
-		}
+		CachedRegion(std::uintptr_t remoteAddress, std::size_t length);
 
 		// This is not really good, but it's the best I can do here to support STL code that wants to take the address of the iterated type
 		struct CachedByte {
 			std::byte value;
 			std::byte* pointer;
 
-			std::byte* operator&() const {
-				return pointer;
-			}
-
-			operator std::byte() const {
-				return value;
-			}
+			std::byte* operator&() const { return pointer; }
+			operator std::byte() const { return value; }
 		};
 
-		[[nodiscard]] CachedByte operator[](std::size_t i) const {
-			return { bytes[i], reinterpret_cast<std::byte*>(remoteAddress + i) };
-		}
+		[[nodiscard]] CachedByte operator[](std::size_t i) const;
 
 		[[nodiscard]] std::uintptr_t getRemoteAddress() const { return remoteAddress; }
 		[[nodiscard]] std::size_t getLength() const { return length; }
@@ -101,49 +87,23 @@ namespace MemoryManager {
 			using pointer = std::byte*;
 			using difference_type = std::ptrdiff_t;
 
-			CachedByte operator*() const {
-				return (*parent)[index];
-			}
-			std::byte* operator->() const {
-				return &(*parent)[index];
-			}
-			CacheIterator& operator++() {
-				index++;
-				return *this;
-			}
-			CacheIterator& operator--() {
-				index--;
-				return *this;
-			}
-			CacheIterator operator++(int) {
-				CacheIterator it = *this;
-				index++;
-				return it;
-			}
-			CacheIterator operator--(int) {
-				CacheIterator it = *this;
-				index--;
-				return it;
-			}
+			[[nodiscard]] CachedByte operator*() const;
+			[[nodiscard]] std::byte* operator->() const;
 
-			bool operator==(const CacheIterator& rhs) const {
-				return index == rhs.index;
-			}
+			CacheIterator& operator++();
+			CacheIterator operator++(int);
+
+			CacheIterator& operator--();
+			CacheIterator operator--(int);
+
+			[[nodiscard]] bool operator==(const CacheIterator& rhs) const;
 		};
 
-		[[nodiscard]] CacheIterator cbegin() const {
-			return { this, 0 };
-		}
-		[[nodiscard]] CacheIterator cend() const {
-			return { this, getLength() };
-		}
+		[[nodiscard]] CacheIterator cbegin() const;
+		[[nodiscard]] CacheIterator cend() const;
 
-		[[nodiscard]] std::reverse_iterator<CacheIterator> crbegin() const {
-			return std::make_reverse_iterator(cend());
-		}
-		[[nodiscard]] std::reverse_iterator<CacheIterator> crend() const {
-			return std::make_reverse_iterator(cbegin());
-		}
+		[[nodiscard]] std::reverse_iterator<CacheIterator> crbegin() const;
+		[[nodiscard]] std::reverse_iterator<CacheIterator> crend() const;
 	};
 
 	class MemoryRegion {
