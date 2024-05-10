@@ -14,12 +14,21 @@ namespace MemoryManager {
 
 	class ProtectionFlags : public std::bitset<3> { // Flags#private may not be applicable for certain tasks like allocation or protection. Use this class instead.
 	public:
-		explicit ProtectionFlags(std::array<char, 3> permissions);
-		ProtectionFlags(
+		constexpr explicit ProtectionFlags(std::array<char, 3> permissions)
+		{
+			set(0, permissions.at(0) == 'r');
+			set(1, permissions.at(1) == 'w');
+			set(2, permissions.at(2) == 'x');
+		}
+		constexpr ProtectionFlags(
 			bool readable,
 			bool writable,
-			bool executable
-		);
+			bool executable)
+		{
+			set(0, readable);
+			set(1, writable);
+			set(2, executable);
+		}
 
 		[[nodiscard]] constexpr bool isReadable() const { return (*this)[0]; }
 		[[nodiscard]] constexpr bool isWriteable() const { return (*this)[1]; }
@@ -28,20 +37,39 @@ namespace MemoryManager {
 
 	class Flags : public std::bitset<4> {
 	public:
-		explicit Flags(std::array<char, 4> permissions); // Parses a "rwxp" string from the /proc/$/maps interface
-		Flags(
+		constexpr explicit Flags(std::array<char, 4> permissions) // Parses a "rwxp" string from the /proc/$/maps interface
+		{
+			set(0, permissions.at(0) == 'r');
+			set(1, permissions.at(1) == 'w');
+			set(2, permissions.at(2) == 'x');
+			set(3, permissions.at(3) == 'p');
+		}
+		constexpr Flags(
 			bool readable,
 			bool writable,
 			bool executable,
-			bool _private
-		);
+			bool _private)
+		{
+			set(0, readable);
+			set(1, writable);
+			set(2, executable);
+			set(3, _private);
+		}
 
 		[[nodiscard]] constexpr bool isReadable() const { return (*this)[0]; }
 		[[nodiscard]] constexpr bool isWriteable() const { return (*this)[1]; }
 		[[nodiscard]] constexpr bool isExecutable() const { return (*this)[2]; }
 		[[nodiscard]] constexpr bool isPrivate() const { return (*this)[3]; }
 
-		[[nodiscard]] std::string asString() const;
+		[[nodiscard]] constexpr std::string asString() const
+		{
+			std::string string;
+			string += test(0) ? 'r' : '-';
+			string += test(1) ? 'w' : '-';
+			string += test(2) ? 'x' : '-';
+			string += test(3) ? 'p' : '-';
+			return string;
+		}
 	};
 
 	bool operator==(const class Flags& flags, const ProtectionFlags& protectionFlags);
@@ -60,6 +88,10 @@ namespace MemoryManager {
 			std::byte value;
 			std::byte* pointer;
 
+			// Since unary-& is gone, we need to somehow allow this by other means
+			[[nodiscard]] CachedByte* getPointer() { return this; }
+			[[nodiscard]] const CachedByte* getPointer() const { return this; }
+
 			std::byte* operator&() const { return pointer; }
 			operator std::byte() const { return value; }
 		};
@@ -68,13 +100,18 @@ namespace MemoryManager {
 
 		[[nodiscard]] std::uintptr_t getRemoteAddress() const { return remoteAddress; }
 		[[nodiscard]] std::size_t getLength() const { return length; }
+		[[nodiscard]] std::byte* getBytes() const { return bytes.get(); }
 
 		class CacheIterator {
 			const CachedRegion* parent;
 			std::size_t index;
 
 		public:
-			CacheIterator() : parent(nullptr), index(0) {}
+			CacheIterator()
+				: parent(nullptr)
+				, index(0)
+			{
+			}
 
 			CacheIterator(const CachedRegion* parent, std::size_t index)
 				: parent(parent)
@@ -107,7 +144,7 @@ namespace MemoryManager {
 	};
 
 	class MemoryRegion {
-		const MemoryManager* parent;
+		MemoryManager* parent;
 		std::uintptr_t beginAddress;
 		std::size_t length;
 		Flags flags;
@@ -115,7 +152,7 @@ namespace MemoryManager {
 		bool special; // On Linux those include mappings which have custom names e.g. initial heap, initial stack etc...
 
 	public:
-		MemoryRegion(const MemoryManager* parent, std::uintptr_t beginAddress, std::size_t length, Flags flags, std::optional<std::string> name, bool special)
+		MemoryRegion(MemoryManager* parent, std::uintptr_t beginAddress, std::size_t length, Flags flags, std::optional<std::string> name, bool special)
 			: parent(parent)
 			, beginAddress(beginAddress)
 			, length(length)
@@ -138,6 +175,7 @@ namespace MemoryManager {
 		}
 
 		// Calling this on sections that are not readable by whatever means will cause undefined behavior
+		template<typename ParentSelf>
 		[[nodiscard]] CachedRegion cache() const;
 
 		struct Compare {
@@ -168,12 +206,39 @@ namespace MemoryManager {
 
 	class MemoryManager {
 	public:
-		virtual ~MemoryManager() = default;
+		/**
+		 * Indicates if the memory manager requires permissions for reading from memory pages
+		 */
+		static constexpr bool RequiresPermissionsForReading = false;
+		/**
+		 * Indicates if the memory manager requires permissions for writing to memory pages
+		 */
+		static constexpr bool RequiresPermissionsForWriting = false;
 
-		[[nodiscard]] virtual const MemoryLayout* getLayout() const = 0;
-		virtual void update() = 0; // Warning: Calling this will invalidate all references to MemoryRegions
+		/**
+		 * Indicates whether the memory manager is fetching memory from a remote target.
+		 * If returning true, this basically states that memory doesn't need to be copied into the local address space, but can be read by dereferencing pointers
+		 */
+		static constexpr bool IsRemoteAddressSpace = false;
 
-		[[nodiscard]] virtual std::size_t getPageGranularity() const = 0;
+		template <typename Self>
+		[[nodiscard]] const auto& getLayout(this Self&& self)
+		{
+			return self.getLayout_impl();
+		}
+
+		// Warning: Calling this will invalidate all references to MemoryRegions
+		template <typename Self>
+		void update(this Self&& self)
+		{
+			return self.update_impl();
+		}
+
+		template <typename Self>
+		[[nodiscard]] std::size_t getPageGranularity(this Self&& self)
+		{
+			return self.getPageGranularity_impl();
+		}
 
 		/**
 		 * Allocates a memory block
@@ -181,88 +246,105 @@ namespace MemoryManager {
 		 * @param size may get rounded up to pagesize
 		 * @returns pointer to the new memory
 		 */
-		[[nodiscard]] virtual std::uintptr_t allocate(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const = 0;
+		template <typename Self>
+		[[nodiscard]] std::uintptr_t allocate(this Self&& self, std::uintptr_t address, std::size_t size, ProtectionFlags protection)
+		{
+			return self.allocate_impl(address, size, protection);
+		}
 		/**
 		 * @param address must be aligned to page granularity
 		 */
-		virtual void deallocate(std::uintptr_t address, std::size_t size) const = 0;
+		template <typename Self>
+		void deallocate(this Self&& self, std::uintptr_t address, std::size_t size)
+		{
+			return self.deallocate_impl(address, size);
+		}
 		/**
 		 * Changes protection of the memory page
 		 * @param address must be aligned to page granularity
 		 */
-		virtual void protect(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const = 0;
+		template <typename Self>
+		void protect(this Self&& self, std::uintptr_t address, std::size_t size, ProtectionFlags protection)
+		{
+			return self.protect_impl(address, size, protection);
+		}
+
 #ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		[[nodiscard]] std::uintptr_t allocate(void* address, std::size_t size, ProtectionFlags protection) const
+		template <typename Self>
+		[[nodiscard]] std::uintptr_t allocate(this Self&& self, void* address, std::size_t size, ProtectionFlags protection)
 		{
-			return allocate(reinterpret_cast<std::uintptr_t>(address), size, protection);
+			return self.allocate_impl(reinterpret_cast<std::uintptr_t>(address), size, protection);
 		}
-		void deallocate(void* address, std::size_t size) const
+		template <typename Self>
+		[[nodiscard]] std::uintptr_t deallocate(this Self&& self, void* address, std::size_t size)
 		{
-			deallocate(reinterpret_cast<std::uintptr_t>(address), size);
+			self.deallocate_impl(reinterpret_cast<std::uintptr_t>(address), size);
 		}
-		void protect(void* address, std::size_t size, ProtectionFlags protection) const
+		template <typename Self>
+		[[nodiscard]] std::uintptr_t protect(this Self&& self, void* address, std::size_t size, ProtectionFlags protection)
 		{
-			protect(reinterpret_cast<std::uintptr_t>(address), size, protection);
+			self.protect_impl(reinterpret_cast<std::uintptr_t>(address), size, protection);
 		}
 #endif
 
-		virtual void read(std::uintptr_t address, void* content, std::size_t length) const = 0;
-		virtual void write(std::uintptr_t address, const void* content, std::size_t length) const = 0;
-
-		template <typename T>
-		void read(std::uintptr_t address, T* content) const
+		template <typename Self>
+		void read(this Self&& self, std::uintptr_t address, void* content, std::size_t length)
 		{
-			read(address, content, sizeof(T));
+			return self.read_impl(address, content, length);
+		}
+		template <typename Self>
+		void write(this Self&& self, std::uintptr_t address, const void* content, std::size_t length)
+		{
+			return self.write_impl(address, content, length);
 		}
 
-		template <typename T>
-		T read(std::uintptr_t address) const
+		template <typename T, typename Self>
+		void read(this Self&& self, std::uintptr_t address, T* content)
+		{
+			self.read(address, content, sizeof(T));
+		}
+
+		template <typename T, typename Self>
+		T read(this Self&& self, std::uintptr_t address)
 		{
 			T obj;
-			read(address, &obj, sizeof(T));
+			self.read(address, &obj, sizeof(T));
 			return obj;
 		}
 
-		template <typename T>
-		void write(std::uintptr_t address, const T& obj) const
+		template <typename T, typename Self>
+		void write(this Self&& self, std::uintptr_t address, const T& obj)
 		{
-			write(address, &obj, sizeof(obj));
+			self.write(address, &obj, sizeof(obj));
 		}
 #ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		template <typename T>
-		void read(const void* address, T* content) const
+		template <typename T, typename Self>
+		void read(this Self&& self, const void* address, T* content)
 		{
-			read<T>(reinterpret_cast<std::uintptr_t>(address), content);
+			self.template read<T>(reinterpret_cast<std::uintptr_t>(address), content);
 		}
 
-		template <typename T>
-		T read(const void* address) const
+		template <typename T, typename Self>
+		T read(this Self&& self, const void* address)
 		{
-			return read<T>(reinterpret_cast<std::uintptr_t>(address));
+			return self.template read<T>(reinterpret_cast<std::uintptr_t>(address));
 		}
 
-		template <typename T>
-		void write(void* address, const T& obj) const
+		template <typename T, typename Self>
+		void write(this Self&& self, void* address, const T& obj)
 		{
-			write<T>(reinterpret_cast<std::uintptr_t>(address), obj);
+			self.template write<T>(reinterpret_cast<std::uintptr_t>(address), obj);
 		}
 #endif
-
-		/**
-		 * Indicates if the memory manager requires permissions for reading from memory pages
-		 */
-		[[nodiscard]] virtual bool requiresPermissionsForReading() const;
-		/**
-		 * Indicates if the memory manager requires permissions for writing from memory pages
-		 */
-		[[nodiscard]] virtual bool requiresPermissionsForWriting() const;
-
-		/**
-		 * Indicates whether the memory manager is fetching memory from a remote target.
-		 * If returning true, this basically states that memory doesn't need to be copied into the local address space, but can be read by dereferencing pointers
-		 */
-		 [[nodiscard]] virtual bool isRemoteAddressSpace() const = 0;
 	};
+
+	template<typename ParentSelf>
+	[[nodiscard]] CachedRegion MemoryRegion::cache() const
+	{
+		CachedRegion region{ beginAddress, length };
+		parent->read<ParentSelf>(beginAddress, region.bytes.get(), length);
+		return region;
+	}
 
 }
 

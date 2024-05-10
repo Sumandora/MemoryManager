@@ -6,21 +6,21 @@
 
 int main()
 {
-	MemoryManager::LocalMemoryManager memoryManager{ MemoryManager::LocalMemoryManager::Mode::READ_AND_WRITE };
+	MemoryManager::LocalMemoryManager<MemoryManager::RWMode::READ_AND_WRITE> memoryManager{};
 
 	int* myInteger = reinterpret_cast<int*>(memoryManager.allocate(nullptr, sizeof(int), { false, false, false } /*No permissions*/));
 	memoryManager.update();
 
 	std::cout << std::hex;
-	for(const MemoryManager::MemoryRegion& reg : *memoryManager.getLayout()) {
+	for(const auto& reg : memoryManager.getLayout()) {
 		std::cout << (reg.getName().has_value() ? reg.getName().value() : std::string("(empty)")) << ' ' << reg.getFlags().asString() << ' ' << reg.getBeginAddress() << '-' << reg.getEndAddress() << (reg.isSpecial() ? " [special]" : "") << std::endl;
 	}
 
 	std::cout << "Allocated memory at " << myInteger << std::endl;
 
-	auto region = memoryManager.getLayout()->findRegion(myInteger);
+	auto region = memoryManager.getLayout().findRegion(myInteger);
 	assert(region != nullptr);
-	auto sameRegion = memoryManager.getLayout()->findRegion(region->getBeginAddress());
+	auto sameRegion = memoryManager.getLayout().findRegion(region->getBeginAddress());
 	assert(region == sameRegion);
 
 	std::cout << "Page region: " << region->getBeginAddress() << "-" << region->getEndAddress() << std::endl;

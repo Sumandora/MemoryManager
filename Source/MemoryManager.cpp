@@ -8,11 +8,3 @@ bool MemoryManager::operator==(const Flags& flags, const ProtectionFlags& protec
 		flags.isWriteable() == protectionFlags.isWriteable() &&
 		flags.isExecutable() == protectionFlags.isExecutable();
 }
-
-bool MemoryManager::MemoryManager::requiresPermissionsForReading() const {
-	return true;
-}
-
-bool MemoryManager::MemoryManager::requiresPermissionsForWriting() const {
-	return true;
-}
