@@ -9,6 +9,7 @@
 #include <limits>
 
 #include "MemoryManager/MemoryManager.hpp"
+#include "UnException.hpp"
 
 namespace MemoryManager {
 
@@ -18,26 +19,6 @@ namespace MemoryManager {
 		WRITE,
 		READ_AND_WRITE
 	};
-
-	constexpr bool hasRead(RWMode mode) {
-		switch (mode) {
-		case RWMode::READ:
-		case RWMode::READ_AND_WRITE:
-			return true;
-		default:
-			return false;
-		}
-	}
-
-	constexpr bool hasWrite(RWMode mode) {
-		switch (mode) {
-		case RWMode::READ:
-		case RWMode::READ_AND_WRITE:
-			return true;
-		default:
-			return false;
-		}
-	}
 
 	template<RWMode Mode_  /* Should reads use the proc mem interface? */>
 	class ExternalMemoryManager : public MemoryManager {
@@ -72,13 +53,6 @@ namespace MemoryManager {
 	public:
 		static constexpr RWMode Mode = Mode_;
 
-		static constexpr bool RequiresPermissionsForReading = false;
-		static constexpr bool RequiresPermissionsForWriting = false;
-		static constexpr bool IsRemoteAddressSpace = true;
-
-		static constexpr bool DoesRead = hasRead(Mode);
-		static constexpr bool DoesWrite = hasWrite(Mode);
-
 		explicit ExternalMemoryManager(std::size_t pid) : ExternalMemoryManager(std::to_string(pid)) {}
 		explicit ExternalMemoryManager(const std::string& pid)
 			: pid(pid)
@@ -96,11 +70,11 @@ namespace MemoryManager {
 		ExternalMemoryManager(const ExternalMemoryManager& other) = delete;
 		ExternalMemoryManager& operator=(const ExternalMemoryManager& other) = delete;
 
-		[[nodiscard]] const MemoryLayout& getLayout_impl() const {
+		[[nodiscard]] const MemoryLayout& getLayout() const override {
 			return layout;
 		}
 
-		void update_impl() {
+		void update() override {
 			std::fstream fileStream{ "/proc/" + pid + "/maps", std::fstream::in };
 			if (!fileStream) {
 				throw std::exception{};
@@ -153,29 +127,31 @@ namespace MemoryManager {
 			layout = std::move(newLayout);
 		}
 
-		[[nodiscard]] std::size_t getPageGranularity_impl() const {
+		[[nodiscard]] std::size_t getPageGranularity() const override {
 			// The page size could, in theory, be a different one for each process, but under Linux that doesn't happen to my knowledge.
 			static std::size_t pageSize = getpagesize();
 			return pageSize;
 		}
 
-		[[nodiscard]] constexpr std::uintptr_t allocate_impl(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const requires false {
+		[[nodiscard]] std::uintptr_t allocate(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const override {
 			(void)address;
 			(void)size;
 			(void)protection;
-			return 0;
+			throw UnException::UnsupportedOperationException{};
 		}
-		constexpr void deallocate_impl(std::uintptr_t address, std::size_t size) const requires false {
+		void deallocate(std::uintptr_t address, std::size_t size) const override {
 			(void)address;
 			(void)size;
+			throw UnException::UnsupportedOperationException{};
 		}
-		constexpr void protect_impl(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const requires false {
+		void protect(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const override {
 			(void)address;
 			(void)size;
 			(void)protection;
+			throw UnException::UnsupportedOperationException{};
 		}
 
-		void read_impl(std::uintptr_t address, void *content, std::size_t length) const requires DoesRead {
+		void read(std::uintptr_t address, void *content, std::size_t length) const override {
 #ifdef __GLIBC__
 			auto res = pread64(memInterface, content, length, static_cast<off64_t>(address));
 #else
@@ -184,7 +160,7 @@ namespace MemoryManager {
 			if (res != length)
 				throw std::runtime_error(strerror(errno));
 		}
-		void write_impl(std::uintptr_t address, const void *content, std::size_t length) const requires DoesWrite {
+		void write(std::uintptr_t address, const void *content, std::size_t length) const override {
 #ifdef __GLIBC__
 			auto res = pwrite64(memInterface, content, length, static_cast<off64_t>(address));
 #else
@@ -192,6 +168,18 @@ namespace MemoryManager {
 #endif
 			if (res != length)
 				throw std::runtime_error(strerror(errno));
+		}
+
+		[[nodiscard]] bool requiresPermissionsForReading() const override {
+			return false;
+		}
+
+		[[nodiscard]] bool requiresPermissionsForWriting() const override {
+			return false;
+		}
+
+		[[nodiscard]] bool isRemoteAddressSpace() const override {
+			return true;
 		}
 
 		using MemoryManager::allocate;

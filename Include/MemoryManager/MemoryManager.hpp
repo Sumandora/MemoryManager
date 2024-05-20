@@ -247,7 +247,6 @@ namespace MemoryManager {
 		}
 
 		// Calling this on sections that are not readable by whatever means will cause undefined behavior
-		template<typename ParentSelf>
 		[[nodiscard]] constexpr const std::unique_ptr<CachedRegion>& cache() const;
 
 		struct Compare {
@@ -290,39 +289,12 @@ namespace MemoryManager {
 
 	class MemoryManager {
 	public:
-		/**
-		 * Indicates if the memory manager requires permissions for reading from memory pages
-		 */
-		static constexpr bool RequiresPermissionsForReading = {};
-		/**
-		 * Indicates if the memory manager requires permissions for writing to memory pages
-		 */
-		static constexpr bool RequiresPermissionsForWriting = {};
-
-		/**
-		 * Indicates whether the memory manager is fetching memory from a remote target.
-		 * If returning true, this basically states that memory doesn't need to be copied into the local address space, but can be read by dereferencing pointers
-		 */
-		static constexpr bool IsRemoteAddressSpace = {};
-
-		template <typename Self>
-		[[nodiscard]] constexpr const auto& getLayout(this Self&& self)
-		{
-			return self.getLayout_impl();
-		}
+		virtual const MemoryLayout& getLayout() const = 0;
 
 		// Warning: Calling this will invalidate all references to MemoryRegions
-		template <typename Self>
-		constexpr void update(this Self&& self)
-		{
-			return self.update_impl();
-		}
+		virtual void update() = 0;
 
-		template <typename Self>
-		[[nodiscard]] constexpr std::size_t getPageGranularity(this Self&& self)
-		{
-			return self.getPageGranularity_impl();
-		}
+		virtual std::size_t getPageGranularity() const = 0;
 
 		/**
 		 * Allocates a memory block
@@ -330,105 +302,96 @@ namespace MemoryManager {
 		 * @param size may get rounded up to pagesize
 		 * @returns pointer to the new memory
 		 */
-		template <typename Self>
-		[[nodiscard]] constexpr std::uintptr_t allocate(this Self&& self, std::uintptr_t address, std::size_t size, ProtectionFlags protection)
-		{
-			return self.allocate_impl(address, size, protection);
-		}
+		virtual std::uintptr_t allocate(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const = 0;
 		/**
 		 * @param address must be aligned to page granularity
 		 */
-		template <typename Self>
-		constexpr void deallocate(this Self&& self, std::uintptr_t address, std::size_t size)
-		{
-			return self.deallocate_impl(address, size);
-		}
+		virtual void deallocate(std::uintptr_t address, std::size_t size) const = 0;
 		/**
 		 * Changes protection of the memory page
 		 * @param address must be aligned to page granularity
 		 */
-		template <typename Self>
-		constexpr void protect(this Self&& self, std::uintptr_t address, std::size_t size, ProtectionFlags protection)
-		{
-			return self.protect_impl(address, size, protection);
-		}
+		virtual void protect(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const = 0;
 
 #ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		template <typename Self>
-		[[nodiscard]] constexpr std::uintptr_t allocate(this Self&& self, void* address, std::size_t size, ProtectionFlags protection)
+		constexpr std::uintptr_t allocate(void* address, std::size_t size, ProtectionFlags protection) const
 		{
-			return self.allocate_impl(reinterpret_cast<std::uintptr_t>(address), size, protection);
+			return allocate(reinterpret_cast<std::uintptr_t>(address), size, protection);
 		}
-		template <typename Self>
-		constexpr void deallocate(this Self&& self, void* address, std::size_t size)
+		constexpr void deallocate(void* address, std::size_t size) const
 		{
-			self.deallocate_impl(reinterpret_cast<std::uintptr_t>(address), size);
+			deallocate(reinterpret_cast<std::uintptr_t>(address), size);
 		}
-		template <typename Self>
-		constexpr void protect(this Self&& self, void* address, std::size_t size, ProtectionFlags protection)
+		constexpr void protect(void* address, std::size_t size, ProtectionFlags protection) const
 		{
-			self.protect_impl(reinterpret_cast<std::uintptr_t>(address), size, protection);
+			protect(reinterpret_cast<std::uintptr_t>(address), size, protection);
 		}
 #endif
 
-		template <typename Self>
-		constexpr void read(this Self&& self, std::uintptr_t address, void* content, std::size_t length)
+		virtual void read(std::uintptr_t address, void* content, std::size_t length) const = 0;
+		virtual void write(std::uintptr_t address, const void* content, std::size_t length) const = 0;
+
+		template <typename T>
+		constexpr void read(std::uintptr_t address, T* content) const
 		{
-			return self.read_impl(address, content, length);
-		}
-		template <typename Self>
-		constexpr void write(this Self&& self, std::uintptr_t address, const void* content, std::size_t length)
-		{
-			return self.write_impl(address, content, length);
+			read(address, content, sizeof(T));
 		}
 
-		template <typename T, typename Self>
-		constexpr void read(this Self&& self, std::uintptr_t address, T* content)
-		{
-			self.read(address, content, sizeof(T));
-		}
-
-		template <typename T, typename Self>
-		[[nodiscard]] constexpr T read(this Self&& self, std::uintptr_t address)
+		template <typename T>
+		[[nodiscard]] constexpr T read(std::uintptr_t address) const
 		{
 			T obj;
-			self.read(address, &obj, sizeof(T));
+			read(address, &obj, sizeof(T));
 			return obj;
 		}
 
-		template <typename T, typename Self>
-		constexpr void write(this Self&& self, std::uintptr_t address, const T& obj)
+		template <typename T>
+		constexpr void write(std::uintptr_t address, const T& obj) const
 		{
-			self.write(address, &obj, sizeof(obj));
+			write(address, &obj, sizeof(obj));
 		}
 #ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		template <typename T, typename Self>
-		constexpr void read(this Self&& self, const void* address, T* content)
+		template <typename T>
+		constexpr void read(const void* address, T* content) const
 		{
-			self.template read<T>(reinterpret_cast<std::uintptr_t>(address), content);
+			read<T>(reinterpret_cast<std::uintptr_t>(address), content);
 		}
 
-		template <typename T, typename Self>
-		[[nodiscard]] constexpr T read(this Self&& self, const void* address)
+		template <typename T>
+		[[nodiscard]] constexpr T read(const void* address) const
 		{
-			return self.template read<T>(reinterpret_cast<std::uintptr_t>(address));
+			return read<T>(reinterpret_cast<std::uintptr_t>(address));
 		}
 
-		template <typename T, typename Self>
-		constexpr void write(this Self&& self, void* address, const T& obj)
+		template <typename T>
+		constexpr void write(void* address, const T& obj) const
 		{
-			self.template write<T>(reinterpret_cast<std::uintptr_t>(address), obj);
+			write<T>(reinterpret_cast<std::uintptr_t>(address), obj);
 		}
 #endif
+
+		/**
+		 * Indicates if the memory manager requires permissions for reading from memory pages
+		 */
+		virtual bool requiresPermissionsForReading() const = 0;
+		/**
+		 * Indicates if the memory manager requires permissions for writing to memory pages
+		 */
+		virtual bool requiresPermissionsForWriting() const = 0;
+
+		/**
+		 * Indicates whether the memory manager is fetching memory from a remote target.
+		 * If returning true, this basically states that memory doesn't need to be copied into the local address space, but can be read by dereferencing pointers
+		 */
+		virtual bool isRemoteAddressSpace() const = 0;
+
 	};
 
-	template<typename ParentSelf>
-	[[nodiscard]] constexpr const std::unique_ptr<CachedRegion>& MemoryRegion::cache() const
-	{
+	constexpr const std::unique_ptr<CachedRegion>& MemoryRegion::cache() const {
 		if(cacheRegion)
 			return cacheRegion;
 		cacheRegion = std::make_unique<CachedRegion>(beginAddress, length);
-		parent->read<ParentSelf>(beginAddress, cacheRegion->bytes.get(), length);
+		parent->read(beginAddress, cacheRegion->bytes.get(), length);
 		return cacheRegion;
 	}
 

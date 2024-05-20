@@ -4,4 +4,11 @@ project(ExternalMemoryManager)
 add_library(ExternalMemoryManager INTERFACE)
 target_include_directories(ExternalMemoryManager INTERFACE "${PROJECT_SOURCE_DIR}/Include")
 
-target_link_libraries(ExternalMemoryManager INTERFACE MemoryManager)
+include("FetchContent")
+
+FetchContent_Declare(UnException
+        GIT_REPOSITORY https://github.com/Sumandora/UnException
+        GIT_PROGRESS TRUE
+        GIT_TAG 3d64540)
+FetchContent_MakeAvailable(UnException)
+target_link_libraries(ExternalMemoryManager INTERFACE UnException MemoryManager)

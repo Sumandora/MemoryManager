@@ -9,16 +9,6 @@ namespace MemoryManager {
 	template<RWMode Mode>
 	class LocalMemoryManager : public ExternalMemoryManager<Mode> {
 	public:
-		static constexpr bool DoesRead = true;
-		static constexpr bool DoesWrite = true;
-
-		static constexpr bool DoesForceRead = Mode == RWMode::READ || Mode == RWMode::READ_AND_WRITE;
-		static constexpr bool DoesForceWrite = Mode == RWMode::WRITE || Mode == RWMode::READ_AND_WRITE;
-
-		static constexpr bool RequiresPermissionsForReading = !DoesForceRead;
-		static constexpr bool RequiresPermissionsForWriting = !DoesForceWrite;
-		static constexpr bool IsRemoteAddressSpace = DoesForceRead; // Setting this to true would indicate that memcpy would have the same effect as using read
-
 		explicit LocalMemoryManager()
 			: ExternalMemoryManager<Mode>("self")
 		{
@@ -38,8 +28,7 @@ namespace MemoryManager {
 			return prot;
 		}
 	public:
-
-		[[nodiscard]] std::uintptr_t allocate_impl(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const
+		[[nodiscard]] std::uintptr_t allocate(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const override
 		{
 			int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 			void* addr = reinterpret_cast<void*>(address);
@@ -50,40 +39,52 @@ namespace MemoryManager {
 				throw std::runtime_error(strerror(errno));
 			return reinterpret_cast<uintptr_t>(res);
 		}
-		void deallocate_impl(std::uintptr_t address, std::size_t size) const
+		void deallocate(std::uintptr_t address, std::size_t size) const override
 		{
 			int res = munmap(reinterpret_cast<void*>(address), size);
 
 			if(res == -1)
 				throw std::runtime_error(strerror(errno));
 		}
-		void protect_impl(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const {
+		void protect(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const override {
 			int res = mprotect(reinterpret_cast<void*>(address), size, protectionFlagsToPosix(protection));
 
 			if(res == -1)
 				throw std::runtime_error(strerror(errno));
 		}
 
-		void read_impl(std::uintptr_t address, void *content, std::size_t length) const
+		void read(std::uintptr_t address, void *content, std::size_t length) const override
 		{
-			if constexpr (!DoesForceRead)
+			if constexpr (Mode == RWMode::NONE || Mode == RWMode::WRITE)
 				std::memcpy(content, reinterpret_cast<void*>(address), length);
 			else
-				ExternalMemoryManager<Mode>::read_impl(address, content, length);
+				ExternalMemoryManager<Mode>::read(address, content, length);
 		}
-		void write_impl(std::uintptr_t address, const void *content, std::size_t length) const
+		void write(std::uintptr_t address, const void *content, std::size_t length) const override
 		{
-			if constexpr (!DoesForceWrite)
+			if constexpr (Mode == RWMode::NONE || Mode == RWMode::READ)
 				std::memcpy(reinterpret_cast<void*>(address), content, length);
 			else
-				ExternalMemoryManager<Mode>::write_impl(address, content, length);
+				ExternalMemoryManager<Mode>::write(address, content, length);
 		}
 
-		using ExternalMemoryManager<Mode>::allocate;
-		using ExternalMemoryManager<Mode>::deallocate;
-		using ExternalMemoryManager<Mode>::protect;
-		using ExternalMemoryManager<Mode>::read;
-		using ExternalMemoryManager<Mode>::write;
+		[[nodiscard]] bool requiresPermissionsForReading() const override {
+			return Mode == RWMode::NONE || Mode == RWMode::WRITE;
+		}
+
+		[[nodiscard]] bool requiresPermissionsForWriting() const override {
+			return Mode == RWMode::NONE || Mode == RWMode::READ;
+		}
+
+		[[nodiscard]] bool isRemoteAddressSpace() const override {
+			return Mode == RWMode::READ_AND_WRITE || Mode == RWMode::READ; // Setting this to true would indicate that memcpy would have the same effect as using read
+		}
+
+		using MemoryManager::allocate;
+		using MemoryManager::deallocate;
+		using MemoryManager::protect;
+		using MemoryManager::read;
+		using MemoryManager::write;
 	};
 }
 
