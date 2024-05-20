@@ -177,6 +177,20 @@ namespace MemoryManager {
 				return it;
 			}
 
+			constexpr auto operator<=>(std::uintptr_t pointer) const {
+				return parent->remoteAddress + index <=> pointer;
+			}
+			constexpr auto operator<=>(void* pointer) const {
+				return this->operator<=>(reinterpret_cast<std::uintptr_t>(pointer));
+			}
+
+			constexpr auto operator==(std::uintptr_t pointer) const {
+				return parent->remoteAddress + index == pointer;
+			}
+			constexpr auto operator==(void* pointer) const {
+				return this->operator==(reinterpret_cast<std::uintptr_t>(pointer));
+			}
+
 			constexpr bool operator==(const CacheIterator& rhs) const {
 				return index == rhs.index;
 			}
@@ -279,17 +293,17 @@ namespace MemoryManager {
 		/**
 		 * Indicates if the memory manager requires permissions for reading from memory pages
 		 */
-		static constexpr bool RequiresPermissionsForReading = false;
+		static constexpr bool RequiresPermissionsForReading = {};
 		/**
 		 * Indicates if the memory manager requires permissions for writing to memory pages
 		 */
-		static constexpr bool RequiresPermissionsForWriting = false;
+		static constexpr bool RequiresPermissionsForWriting = {};
 
 		/**
 		 * Indicates whether the memory manager is fetching memory from a remote target.
 		 * If returning true, this basically states that memory doesn't need to be copied into the local address space, but can be read by dereferencing pointers
 		 */
-		static constexpr bool IsRemoteAddressSpace = false;
+		static constexpr bool IsRemoteAddressSpace = {};
 
 		template <typename Self>
 		[[nodiscard]] constexpr const auto& getLayout(this Self&& self)
