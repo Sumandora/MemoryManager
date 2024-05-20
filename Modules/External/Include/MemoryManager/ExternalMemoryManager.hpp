@@ -9,7 +9,6 @@
 #include <limits>
 
 #include "MemoryManager/MemoryManager.hpp"
-#include "UnException.hpp"
 
 namespace MemoryManager {
 
@@ -77,8 +76,8 @@ namespace MemoryManager {
 		static constexpr bool RequiresPermissionsForWriting = false;
 		static constexpr bool IsRemoteAddressSpace = true;
 
-		static constexpr bool DoesRead = Mode == RWMode::READ || Mode == RWMode::READ_AND_WRITE;
-		static constexpr bool DoesWrite = Mode == RWMode::WRITE || Mode == RWMode::READ_AND_WRITE;
+		static constexpr bool DoesRead = hasRead(Mode);
+		static constexpr bool DoesWrite = hasWrite(Mode);
 
 		explicit ExternalMemoryManager(std::size_t pid) : ExternalMemoryManager(std::to_string(pid)) {}
 		explicit ExternalMemoryManager(const std::string& pid)
@@ -104,7 +103,7 @@ namespace MemoryManager {
 		void update_impl() {
 			std::fstream fileStream{ "/proc/" + pid + "/maps", std::fstream::in };
 			if (!fileStream) {
-				layout.clear();
+				throw std::exception{};
 			}
 
 			MemoryLayout newLayout{};
@@ -146,12 +145,12 @@ namespace MemoryManager {
 					name->pop_back(); // the space
 				}
 
-				newLayout.insert(MemoryRegion{ this, begin, end - begin, Flags{ permissions }, name, special });
+				newLayout.emplace(this, begin, end - begin, Flags{ permissions }, name, special);
 			}
 
 			fileStream.close();
 
-			layout = newLayout;
+			layout = std::move(newLayout);
 		}
 
 		[[nodiscard]] std::size_t getPageGranularity_impl() const {
@@ -160,51 +159,39 @@ namespace MemoryManager {
 			return pageSize;
 		}
 
-		[[nodiscard]] std::uintptr_t allocate_impl(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const {
+		[[nodiscard]] constexpr std::uintptr_t allocate_impl(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const requires false {
 			(void)address;
 			(void)size;
 			(void)protection;
-			throw UnException::UnimplementedException{};
+			return 0;
 		}
-		void deallocate_impl(std::uintptr_t address, std::size_t size) const {
+		constexpr void deallocate_impl(std::uintptr_t address, std::size_t size) const requires false {
 			(void)address;
 			(void)size;
-			throw UnException::UnimplementedException{};
 		}
-		void protect_impl(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const {
+		constexpr void protect_impl(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const requires false {
 			(void)address;
 			(void)size;
 			(void)protection;
-			throw UnException::UnimplementedException{};
 		}
 
-		void read_impl(std::uintptr_t address, void *content, std::size_t length) const {
-			if constexpr (!DoesRead)
-				throw UnException::UnsupportedOperationException{};
-			else {
+		void read_impl(std::uintptr_t address, void *content, std::size_t length) const requires DoesRead {
 #ifdef __GLIBC__
-				long res = pread64(memInterface, content, length, static_cast<off64_t>(address));
+			auto res = pread64(memInterface, content, length, static_cast<off64_t>(address));
 #else
-				long res = pread(memInterface, content, length, static_cast<off_t>(address));
+			auto res = pread(memInterface, content, length, static_cast<off_t>(address));
 #endif
-				if (res != length)
-					throw std::runtime_error(strerror(errno));
-
-			}
+			if (res != length)
+				throw std::runtime_error(strerror(errno));
 		}
-		void write_impl(std::uintptr_t address, const void *content, std::size_t length) const {
-			if constexpr (!DoesWrite)
-				throw UnException::UnsupportedOperationException{};
-			else {
+		void write_impl(std::uintptr_t address, const void *content, std::size_t length) const requires DoesWrite {
 #ifdef __GLIBC__
-				long res = pwrite64(memInterface, content, length, static_cast<off64_t>(address));
+			auto res = pwrite64(memInterface, content, length, static_cast<off64_t>(address));
 #else
-				long res = pwrite(memInterface, content, length, static_cast<off_t>(address));
+			auto res = pwrite(memInterface, content, length, static_cast<off_t>(address));
 #endif
-				if (res != length)
-					throw std::runtime_error(strerror(errno));
-
-			}
+			if (res != length)
+				throw std::runtime_error(strerror(errno));
 		}
 
 		using MemoryManager::allocate;

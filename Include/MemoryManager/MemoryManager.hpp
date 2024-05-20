@@ -20,6 +20,12 @@ namespace MemoryManager {
 			set(1, permissions.at(1) == 'w');
 			set(2, permissions.at(2) == 'x');
 		}
+		constexpr ProtectionFlags(const char rwx[3])
+		{
+			set(0, rwx[0] == 'r');
+			set(1, rwx[1] == 'w');
+			set(2, rwx[2] == 'x');
+		}
 		constexpr ProtectionFlags(
 			bool readable,
 			bool writable,
@@ -43,6 +49,13 @@ namespace MemoryManager {
 			set(1, permissions.at(1) == 'w');
 			set(2, permissions.at(2) == 'x');
 			set(3, permissions.at(3) == 'p');
+		}
+		constexpr Flags(const char rwx[4])
+		{
+			set(0, rwx[0] == 'r');
+			set(1, rwx[1] == 'w');
+			set(2, rwx[2] == 'x');
+			set(3, rwx[3] == 'p');
 		}
 		constexpr Flags(
 			bool readable,
@@ -72,7 +85,13 @@ namespace MemoryManager {
 		}
 	};
 
-	bool operator==(const class Flags& flags, const ProtectionFlags& protectionFlags);
+	constexpr bool operator==(const Flags& flags, const ProtectionFlags& protectionFlags)
+	{
+		return
+			flags.isReadable() == protectionFlags.isReadable() &&
+			flags.isWriteable() == protectionFlags.isWriteable() &&
+			flags.isExecutable() == protectionFlags.isExecutable();
+	}
 
 	class CachedRegion {
 		std::uintptr_t remoteAddress;
@@ -81,7 +100,12 @@ namespace MemoryManager {
 		friend class MemoryRegion;
 
 	public:
-		CachedRegion(std::uintptr_t remoteAddress, std::size_t length);
+		constexpr CachedRegion(std::uintptr_t remoteAddress, std::size_t length)
+			: remoteAddress(remoteAddress)
+			, length(length)
+			, bytes(std::unique_ptr<std::byte[]>{ new std::byte[length] })
+		{
+		}
 
 		// This is not really good, but it's the best I can do here to support STL code that wants to take the address of the iterated type
 		struct CachedByte {
@@ -89,31 +113,33 @@ namespace MemoryManager {
 			std::byte* pointer;
 
 			// Since unary-& is gone, we need to somehow allow this by other means
-			[[nodiscard]] CachedByte* getPointer() { return this; }
-			[[nodiscard]] const CachedByte* getPointer() const { return this; }
+			template<typename Self>
+			[[nodiscard]] constexpr auto getThis(this Self&& self) { return self; }
 
-			std::byte* operator&() const { return pointer; }
-			operator std::byte() const { return value; }
+			constexpr std::byte* operator&() const { return pointer; }
+			constexpr operator std::byte() const { return value; }
 		};
 
-		[[nodiscard]] CachedByte operator[](std::size_t i) const;
+		[[nodiscard]] CachedByte operator[](std::size_t i) const {
+			return { bytes[i], reinterpret_cast<std::byte*>(remoteAddress + i) };
+		}
 
-		[[nodiscard]] std::uintptr_t getRemoteAddress() const { return remoteAddress; }
-		[[nodiscard]] std::size_t getLength() const { return length; }
-		[[nodiscard]] std::byte* getBytes() const { return bytes.get(); }
+		[[nodiscard]] constexpr std::uintptr_t getRemoteAddress() const { return remoteAddress; }
+		[[nodiscard]] constexpr std::size_t getLength() const { return length; }
+		[[nodiscard]] constexpr std::byte* getBytes() const { return bytes.get(); }
 
 		class CacheIterator {
 			const CachedRegion* parent;
 			std::size_t index;
 
 		public:
-			CacheIterator()
+			constexpr CacheIterator()
 				: parent(nullptr)
 				, index(0)
 			{
 			}
 
-			CacheIterator(const CachedRegion* parent, std::size_t index)
+			constexpr CacheIterator(const CachedRegion* parent, std::size_t index)
 				: parent(parent)
 				, index(index)
 			{
@@ -124,23 +150,51 @@ namespace MemoryManager {
 			using pointer = std::byte*;
 			using difference_type = std::ptrdiff_t;
 
-			[[nodiscard]] CachedByte operator*() const;
-			[[nodiscard]] std::byte* operator->() const;
+			constexpr CachedByte operator*() const {
+				return (*parent)[index];
+			}
+			constexpr std::byte* operator->() const {
+				return &(*parent)[index];
+			}
 
-			CacheIterator& operator++();
-			CacheIterator operator++(int);
+			constexpr CacheIterator& operator++() {
+				index++;
+				return *this;
+			}
+			constexpr CacheIterator operator++(int) {
+				CacheIterator it = *this;
+				index++;
+				return it;
+			}
 
-			CacheIterator& operator--();
-			CacheIterator operator--(int);
+			constexpr CacheIterator& operator--() {
+				index--;
+				return *this;
+			}
+			constexpr CacheIterator operator--(int) {
+				CacheIterator it = *this;
+				index--;
+				return it;
+			}
 
-			[[nodiscard]] bool operator==(const CacheIterator& rhs) const;
+			constexpr bool operator==(const CacheIterator& rhs) const {
+				return index == rhs.index;
+			}
 		};
 
-		[[nodiscard]] CacheIterator cbegin() const;
-		[[nodiscard]] CacheIterator cend() const;
+		[[nodiscard]] constexpr CacheIterator cbegin() const {
+			return { this, 0 };
+		}
+		[[nodiscard]] constexpr CacheIterator cend() const {
+			return { this, getLength() };
+		}
 
-		[[nodiscard]] std::reverse_iterator<CacheIterator> crbegin() const;
-		[[nodiscard]] std::reverse_iterator<CacheIterator> crend() const;
+		[[nodiscard]] constexpr std::reverse_iterator<CacheIterator> crbegin() const {
+			return std::make_reverse_iterator(cend());
+		}
+		[[nodiscard]] constexpr std::reverse_iterator<CacheIterator> crend() const {
+			return std::make_reverse_iterator(cbegin());
+		}
 	};
 
 	class MemoryRegion {
@@ -149,44 +203,48 @@ namespace MemoryManager {
 		std::size_t length;
 		Flags flags;
 		std::optional<std::string> name;
-		bool special; // On Linux those include mappings which have custom names e.g. initial heap, initial stack etc...
+		// Special regions are generally not supposed to be read
+		// on Linux those include initial heap, initial stack, and more
+		bool special;
+		mutable std::unique_ptr<CachedRegion> cacheRegion;
 
 	public:
-		MemoryRegion(MemoryManager* parent, std::uintptr_t beginAddress, std::size_t length, Flags flags, std::optional<std::string> name, bool special)
+		constexpr MemoryRegion(MemoryManager* parent, std::uintptr_t beginAddress, std::size_t length, Flags flags, std::optional<std::string> name, bool special)
 			: parent(parent)
 			, beginAddress(beginAddress)
 			, length(length)
 			, flags(flags)
 			, name(std::move(name))
 			, special(special)
+			, cacheRegion(nullptr)
 		{
 		}
 
-		[[nodiscard]] std::uintptr_t getBeginAddress() const { return beginAddress; }
-		[[nodiscard]] std::size_t getLength() const { return length; }
-		[[nodiscard]] std::uintptr_t getEndAddress() const { return beginAddress + length; }
-		[[nodiscard]] const Flags& getFlags() const { return flags; }
-		[[nodiscard]] const std::optional<std::string>& getName() const { return name; }
-		[[nodiscard]] bool isSpecial() const { return special; }
+		[[nodiscard]] constexpr std::uintptr_t getBeginAddress() const { return beginAddress; }
+		[[nodiscard]] constexpr std::size_t getLength() const { return length; }
+		[[nodiscard]] constexpr std::uintptr_t getEndAddress() const { return beginAddress + length; }
+		[[nodiscard]] constexpr const Flags& getFlags() const { return flags; }
+		[[nodiscard]] constexpr const std::optional<std::string>& getName() const { return name; }
+		[[nodiscard]] constexpr bool isSpecial() const { return special; }
 
-		[[nodiscard]] bool isInside(std::uintptr_t address) const
+		[[nodiscard]] constexpr bool isInside(std::uintptr_t address) const
 		{
 			return address >= beginAddress && address < beginAddress + length;
 		}
 
 		// Calling this on sections that are not readable by whatever means will cause undefined behavior
 		template<typename ParentSelf>
-		[[nodiscard]] CachedRegion cache() const;
+		[[nodiscard]] constexpr const std::unique_ptr<CachedRegion>& cache() const;
 
 		struct Compare {
 			using is_transparent = void;
 
-			bool operator()(const MemoryRegion& lhs, const MemoryRegion& rhs) const
+			constexpr bool operator()(const MemoryRegion& lhs, const MemoryRegion& rhs) const
 			{
 				return lhs.beginAddress < rhs.beginAddress;
 			}
 
-			bool operator()(std::uintptr_t lhs, const MemoryRegion& rhs) const
+			constexpr bool operator()(std::uintptr_t lhs, const MemoryRegion& rhs) const
 			{
 				return lhs < rhs.beginAddress;
 			}
@@ -195,9 +253,21 @@ namespace MemoryManager {
 
 	class MemoryLayout : public std::set<MemoryRegion, MemoryRegion::Compare> {
 	public:
-		[[nodiscard]] const MemoryRegion* findRegion(std::uintptr_t address) const;
+		[[nodiscard]] constexpr const MemoryRegion* findRegion(std::uintptr_t address) const
+		{
+			if(empty())
+				return nullptr;
+			auto it = upper_bound(address);
+			if(it == begin())
+				return nullptr;
+			it--;
+			auto& region = *it;
+			if(region.isInside(address))
+				return &region;
+			return nullptr;
+		}
 #ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		[[nodiscard]] const MemoryRegion* findRegion(const void* address) const
+		[[nodiscard]] constexpr const MemoryRegion* findRegion(const void* address) const
 		{
 			return findRegion(reinterpret_cast<std::uintptr_t>(address));
 		}
@@ -222,20 +292,20 @@ namespace MemoryManager {
 		static constexpr bool IsRemoteAddressSpace = false;
 
 		template <typename Self>
-		[[nodiscard]] const auto& getLayout(this Self&& self)
+		[[nodiscard]] constexpr const auto& getLayout(this Self&& self)
 		{
 			return self.getLayout_impl();
 		}
 
 		// Warning: Calling this will invalidate all references to MemoryRegions
 		template <typename Self>
-		void update(this Self&& self)
+		constexpr void update(this Self&& self)
 		{
 			return self.update_impl();
 		}
 
 		template <typename Self>
-		[[nodiscard]] std::size_t getPageGranularity(this Self&& self)
+		[[nodiscard]] constexpr std::size_t getPageGranularity(this Self&& self)
 		{
 			return self.getPageGranularity_impl();
 		}
@@ -247,7 +317,7 @@ namespace MemoryManager {
 		 * @returns pointer to the new memory
 		 */
 		template <typename Self>
-		[[nodiscard]] std::uintptr_t allocate(this Self&& self, std::uintptr_t address, std::size_t size, ProtectionFlags protection)
+		[[nodiscard]] constexpr std::uintptr_t allocate(this Self&& self, std::uintptr_t address, std::size_t size, ProtectionFlags protection)
 		{
 			return self.allocate_impl(address, size, protection);
 		}
@@ -255,7 +325,7 @@ namespace MemoryManager {
 		 * @param address must be aligned to page granularity
 		 */
 		template <typename Self>
-		void deallocate(this Self&& self, std::uintptr_t address, std::size_t size)
+		constexpr void deallocate(this Self&& self, std::uintptr_t address, std::size_t size)
 		{
 			return self.deallocate_impl(address, size);
 		}
@@ -264,48 +334,48 @@ namespace MemoryManager {
 		 * @param address must be aligned to page granularity
 		 */
 		template <typename Self>
-		void protect(this Self&& self, std::uintptr_t address, std::size_t size, ProtectionFlags protection)
+		constexpr void protect(this Self&& self, std::uintptr_t address, std::size_t size, ProtectionFlags protection)
 		{
 			return self.protect_impl(address, size, protection);
 		}
 
 #ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
 		template <typename Self>
-		[[nodiscard]] std::uintptr_t allocate(this Self&& self, void* address, std::size_t size, ProtectionFlags protection)
+		[[nodiscard]] constexpr std::uintptr_t allocate(this Self&& self, void* address, std::size_t size, ProtectionFlags protection)
 		{
 			return self.allocate_impl(reinterpret_cast<std::uintptr_t>(address), size, protection);
 		}
 		template <typename Self>
-		[[nodiscard]] std::uintptr_t deallocate(this Self&& self, void* address, std::size_t size)
+		constexpr void deallocate(this Self&& self, void* address, std::size_t size)
 		{
 			self.deallocate_impl(reinterpret_cast<std::uintptr_t>(address), size);
 		}
 		template <typename Self>
-		[[nodiscard]] std::uintptr_t protect(this Self&& self, void* address, std::size_t size, ProtectionFlags protection)
+		constexpr void protect(this Self&& self, void* address, std::size_t size, ProtectionFlags protection)
 		{
 			self.protect_impl(reinterpret_cast<std::uintptr_t>(address), size, protection);
 		}
 #endif
 
 		template <typename Self>
-		void read(this Self&& self, std::uintptr_t address, void* content, std::size_t length)
+		constexpr void read(this Self&& self, std::uintptr_t address, void* content, std::size_t length)
 		{
 			return self.read_impl(address, content, length);
 		}
 		template <typename Self>
-		void write(this Self&& self, std::uintptr_t address, const void* content, std::size_t length)
+		constexpr void write(this Self&& self, std::uintptr_t address, const void* content, std::size_t length)
 		{
 			return self.write_impl(address, content, length);
 		}
 
 		template <typename T, typename Self>
-		void read(this Self&& self, std::uintptr_t address, T* content)
+		constexpr void read(this Self&& self, std::uintptr_t address, T* content)
 		{
 			self.read(address, content, sizeof(T));
 		}
 
 		template <typename T, typename Self>
-		T read(this Self&& self, std::uintptr_t address)
+		[[nodiscard]] constexpr T read(this Self&& self, std::uintptr_t address)
 		{
 			T obj;
 			self.read(address, &obj, sizeof(T));
@@ -313,25 +383,25 @@ namespace MemoryManager {
 		}
 
 		template <typename T, typename Self>
-		void write(this Self&& self, std::uintptr_t address, const T& obj)
+		constexpr void write(this Self&& self, std::uintptr_t address, const T& obj)
 		{
 			self.write(address, &obj, sizeof(obj));
 		}
 #ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
 		template <typename T, typename Self>
-		void read(this Self&& self, const void* address, T* content)
+		constexpr void read(this Self&& self, const void* address, T* content)
 		{
 			self.template read<T>(reinterpret_cast<std::uintptr_t>(address), content);
 		}
 
 		template <typename T, typename Self>
-		T read(this Self&& self, const void* address)
+		[[nodiscard]] constexpr T read(this Self&& self, const void* address)
 		{
 			return self.template read<T>(reinterpret_cast<std::uintptr_t>(address));
 		}
 
 		template <typename T, typename Self>
-		void write(this Self&& self, void* address, const T& obj)
+		constexpr void write(this Self&& self, void* address, const T& obj)
 		{
 			self.template write<T>(reinterpret_cast<std::uintptr_t>(address), obj);
 		}
@@ -339,11 +409,13 @@ namespace MemoryManager {
 	};
 
 	template<typename ParentSelf>
-	[[nodiscard]] CachedRegion MemoryRegion::cache() const
+	[[nodiscard]] constexpr const std::unique_ptr<CachedRegion>& MemoryRegion::cache() const
 	{
-		CachedRegion region{ beginAddress, length };
-		parent->read<ParentSelf>(beginAddress, region.bytes.get(), length);
-		return region;
+		if(cacheRegion)
+			return cacheRegion;
+		cacheRegion = std::make_unique<CachedRegion>(beginAddress, length);
+		parent->read<ParentSelf>(beginAddress, cacheRegion->bytes.get(), length);
+		return cacheRegion;
 	}
 
 }
