@@ -63,7 +63,8 @@ namespace MemoryManager {
 					throw std::runtime_error(strerror(errno));
 		}
 		~ExternalMemoryManager() {
-			close(memInterface);
+			if constexpr(Mode != RWMode::NONE)
+				close(memInterface);
 		}
 
 		// Since we have a file handle as one of the member variables these two operations are not possible
@@ -152,22 +153,30 @@ namespace MemoryManager {
 		}
 
 		void read(std::uintptr_t address, void *content, std::size_t length) const override {
+			if constexpr(Mode != RWMode::READ && Mode != RWMode::READ_AND_WRITE)
+				throw UnException::UnimplementedException{};
+			else {
 #ifdef __GLIBC__
-			auto res = pread64(memInterface, content, length, static_cast<off64_t>(address));
+				auto res = pread64(memInterface, content, length, static_cast<off64_t>(address));
 #else
-			auto res = pread(memInterface, content, length, static_cast<off_t>(address));
+				auto res = pread(memInterface, content, length, static_cast<off_t>(address));
 #endif
-			if (res != length)
-				throw std::runtime_error(strerror(errno));
+				if (res != length)
+					throw std::runtime_error(strerror(errno));
+			}
 		}
 		void write(std::uintptr_t address, const void *content, std::size_t length) const override {
+			if constexpr(Mode != RWMode::WRITE && Mode != RWMode::READ_AND_WRITE)
+				throw UnException::UnimplementedException{};
+			else {
 #ifdef __GLIBC__
-			auto res = pwrite64(memInterface, content, length, static_cast<off64_t>(address));
+				auto res = pwrite64(memInterface, content, length, static_cast<off64_t>(address));
 #else
-			auto res = pwrite(memInterface, content, length, static_cast<off_t>(address));
+				auto res = pwrite(memInterface, content, length, static_cast<off_t>(address));
 #endif
-			if (res != length)
-				throw std::runtime_error(strerror(errno));
+				if (res != length)
+					throw std::runtime_error(strerror(errno));
+			}
 		}
 
 		[[nodiscard]] bool requiresPermissionsForReading() const override {
