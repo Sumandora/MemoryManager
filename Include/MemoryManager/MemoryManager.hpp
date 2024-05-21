@@ -330,6 +330,14 @@ namespace MemoryManager {
 
 		virtual void read(std::uintptr_t address, void* content, std::size_t length) const = 0;
 		virtual void write(std::uintptr_t address, const void* content, std::size_t length) const = 0;
+#ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
+		constexpr void read(const void* address, void* content, std::size_t length) const {
+			read(reinterpret_cast<std::uintptr_t>(address), content, length);
+		}
+		constexpr void write(void* address, const void* content, std::size_t length) const {
+			write(reinterpret_cast<std::uintptr_t>(address), content, length);
+		}
+#endif
 
 		template <typename T>
 		constexpr void read(std::uintptr_t address, T* content) const
