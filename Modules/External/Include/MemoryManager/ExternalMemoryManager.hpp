@@ -143,7 +143,7 @@ namespace MemoryManager {
 #else
 				auto res = pread(memInterface, content, length, static_cast<off_t>(address));
 #endif
-				if (res != length)
+				if (res == -1)
 					throw std::runtime_error(strerror(errno));
 			}
 		}
@@ -156,7 +156,7 @@ namespace MemoryManager {
 #else
 				auto res = pwrite(memInterface, content, length, static_cast<off_t>(address));
 #endif
-				if (res != length)
+				if (res == -1)
 					throw std::runtime_error(strerror(errno));
 			}
 		}
