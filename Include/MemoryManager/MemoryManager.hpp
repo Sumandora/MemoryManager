@@ -87,10 +87,7 @@ namespace MemoryManager {
 
 	constexpr bool operator==(const Flags& flags, const ProtectionFlags& protectionFlags)
 	{
-		return
-			flags.isReadable() == protectionFlags.isReadable() &&
-			flags.isWriteable() == protectionFlags.isWriteable() &&
-			flags.isExecutable() == protectionFlags.isExecutable();
+		return flags.isReadable() == protectionFlags.isReadable() && flags.isWriteable() == protectionFlags.isWriteable() && flags.isExecutable() == protectionFlags.isExecutable();
 	}
 
 	class CachedRegion {
@@ -113,14 +110,15 @@ namespace MemoryManager {
 			std::byte* pointer;
 
 			// Since unary-& is gone, we need to somehow allow this by other means
-			template<typename Self>
+			template <typename Self>
 			[[nodiscard]] constexpr auto getThis(this Self&& self) { return self; }
 
 			constexpr std::byte* operator&() const { return pointer; }
 			constexpr operator std::byte() const { return value; }
 		};
 
-		[[nodiscard]] CachedByte operator[](std::size_t i) const {
+		[[nodiscard]] CachedByte operator[](std::size_t i) const
+		{
 			return { bytes[i], reinterpret_cast<std::byte*>(remoteAddress + i) };
 		}
 
@@ -150,63 +148,78 @@ namespace MemoryManager {
 			using pointer = std::byte*;
 			using difference_type = std::ptrdiff_t;
 
-			constexpr CachedByte operator*() const {
+			constexpr CachedByte operator*() const
+			{
 				return (*parent)[index];
 			}
-			constexpr std::byte* operator->() const {
+			constexpr std::byte* operator->() const
+			{
 				return &(*parent)[index];
 			}
 
-			constexpr CacheIterator& operator++() {
+			constexpr CacheIterator& operator++()
+			{
 				index++;
 				return *this;
 			}
-			constexpr CacheIterator operator++(int) {
+			constexpr CacheIterator operator++(int)
+			{
 				CacheIterator it = *this;
 				index++;
 				return it;
 			}
 
-			constexpr CacheIterator& operator--() {
+			constexpr CacheIterator& operator--()
+			{
 				index--;
 				return *this;
 			}
-			constexpr CacheIterator operator--(int) {
+			constexpr CacheIterator operator--(int)
+			{
 				CacheIterator it = *this;
 				index--;
 				return it;
 			}
 
-			constexpr auto operator<=>(std::uintptr_t pointer) const {
+			constexpr auto operator<=>(std::uintptr_t pointer) const
+			{
 				return parent->remoteAddress + index <=> pointer;
 			}
-			constexpr auto operator<=>(void* pointer) const {
+			constexpr auto operator<=>(void* pointer) const
+			{
 				return this->operator<=>(reinterpret_cast<std::uintptr_t>(pointer));
 			}
 
-			constexpr auto operator==(std::uintptr_t pointer) const {
+			constexpr auto operator==(std::uintptr_t pointer) const
+			{
 				return parent->remoteAddress + index == pointer;
 			}
-			constexpr auto operator==(void* pointer) const {
+			constexpr auto operator==(void* pointer) const
+			{
 				return this->operator==(reinterpret_cast<std::uintptr_t>(pointer));
 			}
 
-			constexpr bool operator==(const CacheIterator& rhs) const {
+			constexpr bool operator==(const CacheIterator& rhs) const
+			{
 				return index == rhs.index;
 			}
 		};
 
-		[[nodiscard]] constexpr CacheIterator cbegin() const {
+		[[nodiscard]] constexpr CacheIterator cbegin() const
+		{
 			return { this, 0 };
 		}
-		[[nodiscard]] constexpr CacheIterator cend() const {
+		[[nodiscard]] constexpr CacheIterator cend() const
+		{
 			return { this, getLength() };
 		}
 
-		[[nodiscard]] constexpr std::reverse_iterator<CacheIterator> crbegin() const {
+		[[nodiscard]] constexpr std::reverse_iterator<CacheIterator> crbegin() const
+		{
 			return std::make_reverse_iterator(cend());
 		}
-		[[nodiscard]] constexpr std::reverse_iterator<CacheIterator> crend() const {
+		[[nodiscard]] constexpr std::reverse_iterator<CacheIterator> crend() const
+		{
 			return std::make_reverse_iterator(cbegin());
 		}
 	};
@@ -268,14 +281,14 @@ namespace MemoryManager {
 	public:
 		[[nodiscard]] constexpr const MemoryRegion* findRegion(std::uintptr_t address) const
 		{
-			if(empty())
+			if (empty())
 				return nullptr;
 			auto it = upper_bound(address);
-			if(it == begin())
+			if (it == begin())
 				return nullptr;
 			it--;
 			auto& region = *it;
-			if(region.isInside(address))
+			if (region.isInside(address))
 				return &region;
 			return nullptr;
 		}
@@ -331,10 +344,12 @@ namespace MemoryManager {
 		virtual void read(std::uintptr_t address, void* content, std::size_t length) const = 0;
 		virtual void write(std::uintptr_t address, const void* content, std::size_t length) const = 0;
 #ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		constexpr void read(const void* address, void* content, std::size_t length) const {
+		constexpr void read(const void* address, void* content, std::size_t length) const
+		{
 			read(reinterpret_cast<std::uintptr_t>(address), content, length);
 		}
-		constexpr void write(void* address, const void* content, std::size_t length) const {
+		constexpr void write(void* address, const void* content, std::size_t length) const
+		{
 			write(reinterpret_cast<std::uintptr_t>(address), content, length);
 		}
 #endif
@@ -392,11 +407,11 @@ namespace MemoryManager {
 		 * If returning true, this basically states that memory doesn't need to be copied into the local address space, but can be read by dereferencing pointers
 		 */
 		virtual bool isRemoteAddressSpace() const = 0;
-
 	};
 
-	constexpr const std::unique_ptr<CachedRegion>& MemoryRegion::cache() const {
-		if(cacheRegion)
+	constexpr const std::unique_ptr<CachedRegion>& MemoryRegion::cache() const
+	{
+		if (cacheRegion)
 			return cacheRegion;
 		cacheRegion = std::make_unique<CachedRegion>(beginAddress, length);
 		parent->read(beginAddress, cacheRegion->bytes.get(), length);

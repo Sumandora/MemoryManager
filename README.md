@@ -60,5 +60,7 @@ memoryManager.write<T>(ptr, ...);
 
 ## Implementation
 
-The memory manager detects memory regions by parsing `/proc/[pid]/maps`. It maintains an internal layout of the memory regions.  
-Reads and writes to protected memory are done through `/proc/[pid]/mem`, which works because of [magic](https://offlinemark.com/2021/05/12/an-obscure-quirk-of-proc/).
+The memory manager detects memory regions by parsing `/proc/[pid]/maps`. It maintains an internal layout of the memory
+regions.  
+Reads and writes to protected memory are done through `/proc/[pid]/mem`, which works because
+of [magic](https://offlinemark.com/2021/05/12/an-obscure-quirk-of-proc/).

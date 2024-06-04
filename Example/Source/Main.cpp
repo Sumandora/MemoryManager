@@ -1,8 +1,8 @@
-#include <cassert>
-#include <iostream>
-
 #define MEMORYMANAGER_DEFINE_PTR_WRAPPER
 #include "MemoryManager/LocalMemoryManager.hpp"
+
+#include <cassert>
+#include <iostream>
 
 int main()
 {
@@ -12,7 +12,7 @@ int main()
 	memoryManager.update();
 
 	std::cout << std::hex;
-	for(const auto& reg : memoryManager.getLayout()) {
+	for (const auto& reg : memoryManager.getLayout()) {
 		std::cout << (reg.getName().has_value() ? reg.getName().value() : std::string("(empty)")) << ' ' << reg.getFlags().asString() << ' ' << reg.getBeginAddress() << '-' << reg.getEndAddress() << (reg.isSpecial() ? " [special]" : "") << std::endl;
 	}
 

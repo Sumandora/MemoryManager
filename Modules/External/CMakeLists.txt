@@ -9,6 +9,6 @@ include("FetchContent")
 FetchContent_Declare(UnException
         GIT_REPOSITORY https://github.com/Sumandora/UnException
         GIT_PROGRESS TRUE
-        GIT_TAG 3d64540)
+        GIT_TAG 1.0)
 FetchContent_MakeAvailable(UnException)
 target_link_libraries(ExternalMemoryManager INTERFACE UnException MemoryManager)

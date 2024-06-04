@@ -1,15 +1,14 @@
 #ifndef MEMORYMANAGER_EXTERNALMEMORYMANAGER_HPP
 #define MEMORYMANAGER_EXTERNALMEMORYMANAGER_HPP
 
-#include <cstring>
-#include <fcntl.h>
-#include <variant>
-#include <fstream>
-#include <sstream>
-#include <limits>
-
 #include "MemoryManager/MemoryManager.hpp"
 #include "UnException.hpp"
+
+#include <fcntl.h>
+#include <cstring>
+#include <fstream>
+#include <limits>
+#include <variant>
 
 namespace MemoryManager {
 
@@ -20,7 +19,7 @@ namespace MemoryManager {
 		READ_AND_WRITE
 	};
 
-	template<RWMode Mode_  /* Should reads use the proc mem interface? */>
+	template <RWMode Mode_ /* Should reads use the proc mem interface? */>
 	class ExternalMemoryManager : public MemoryManager {
 	private:
 		std::string pid;
@@ -41,7 +40,7 @@ namespace MemoryManager {
 				int flag;
 				if constexpr (Mode_ == RWMode::READ)
 					flag = O_RDONLY;
-				else if constexpr(Mode_ == RWMode::WRITE)
+				else if constexpr (Mode_ == RWMode::WRITE)
 					flag = O_WRONLY;
 				else if constexpr (Mode_ == RWMode::READ_AND_WRITE)
 					flag = O_RDWR;
@@ -53,17 +52,21 @@ namespace MemoryManager {
 	public:
 		static constexpr RWMode Mode = Mode_;
 
-		explicit ExternalMemoryManager(std::size_t pid) : ExternalMemoryManager(std::to_string(pid)) {}
+		explicit ExternalMemoryManager(std::size_t pid)
+			: ExternalMemoryManager(std::to_string(pid))
+		{
+		}
 		explicit ExternalMemoryManager(const std::string& pid)
 			: pid(pid)
 			, memInterface(openFileHandle(pid))
 		{
 			if constexpr (Mode != RWMode::NONE)
-				if(memInterface == INVALID_FILE_HANDLE)
+				if (memInterface == INVALID_FILE_HANDLE)
 					throw std::runtime_error(strerror(errno));
 		}
-		~ExternalMemoryManager() {
-			if constexpr(Mode != RWMode::NONE)
+		~ExternalMemoryManager()
+		{
+			if constexpr (Mode != RWMode::NONE)
 				close(memInterface);
 		}
 
@@ -71,11 +74,13 @@ namespace MemoryManager {
 		ExternalMemoryManager(const ExternalMemoryManager& other) = delete;
 		ExternalMemoryManager& operator=(const ExternalMemoryManager& other) = delete;
 
-		[[nodiscard]] const MemoryLayout& getLayout() const override {
+		[[nodiscard]] const MemoryLayout& getLayout() const override
+		{
 			return layout;
 		}
 
-		void update() override {
+		void update() override
+		{
 			std::fstream fileStream{ "/proc/" + pid + "/maps", std::fstream::in };
 			if (!fileStream) {
 				throw std::exception{};
@@ -98,7 +103,7 @@ namespace MemoryManager {
 
 				bool special = false;
 
-				if(!name.empty() && name[0] == '[') {
+				if (!name.empty() && name[0] == '[') {
 					special = true;
 				}
 
@@ -110,32 +115,37 @@ namespace MemoryManager {
 			layout = std::move(newLayout);
 		}
 
-		[[nodiscard]] std::size_t getPageGranularity() const override {
+		[[nodiscard]] std::size_t getPageGranularity() const override
+		{
 			// The page size could, in theory, be a different one for each process, but under Linux that doesn't happen to my knowledge.
 			static std::size_t pageSize = getpagesize();
 			return pageSize;
 		}
 
-		[[nodiscard]] std::uintptr_t allocate(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const override {
+		[[nodiscard]] std::uintptr_t allocate(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const override
+		{
 			(void)address;
 			(void)size;
 			(void)protection;
 			throw UnException::UnsupportedOperationException{};
 		}
-		void deallocate(std::uintptr_t address, std::size_t size) const override {
+		void deallocate(std::uintptr_t address, std::size_t size) const override
+		{
 			(void)address;
 			(void)size;
 			throw UnException::UnsupportedOperationException{};
 		}
-		void protect(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const override {
+		void protect(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const override
+		{
 			(void)address;
 			(void)size;
 			(void)protection;
 			throw UnException::UnsupportedOperationException{};
 		}
 
-		void read(std::uintptr_t address, void *content, std::size_t length) const override {
-			if constexpr(Mode != RWMode::READ && Mode != RWMode::READ_AND_WRITE)
+		void read(std::uintptr_t address, void* content, std::size_t length) const override
+		{
+			if constexpr (Mode != RWMode::READ && Mode != RWMode::READ_AND_WRITE)
 				throw UnException::UnimplementedException{};
 			else {
 #ifdef __GLIBC__
@@ -147,8 +157,9 @@ namespace MemoryManager {
 					throw std::runtime_error(strerror(errno));
 			}
 		}
-		void write(std::uintptr_t address, const void *content, std::size_t length) const override {
-			if constexpr(Mode != RWMode::WRITE && Mode != RWMode::READ_AND_WRITE)
+		void write(std::uintptr_t address, const void* content, std::size_t length) const override
+		{
+			if constexpr (Mode != RWMode::WRITE && Mode != RWMode::READ_AND_WRITE)
 				throw UnException::UnimplementedException{};
 			else {
 #ifdef __GLIBC__
@@ -161,15 +172,18 @@ namespace MemoryManager {
 			}
 		}
 
-		[[nodiscard]] bool requiresPermissionsForReading() const override {
+		[[nodiscard]] bool requiresPermissionsForReading() const override
+		{
 			return false;
 		}
 
-		[[nodiscard]] bool requiresPermissionsForWriting() const override {
+		[[nodiscard]] bool requiresPermissionsForWriting() const override
+		{
 			return false;
 		}
 
-		[[nodiscard]] bool isRemoteAddressSpace() const override {
+		[[nodiscard]] bool isRemoteAddressSpace() const override
+		{
 			return true;
 		}
 
