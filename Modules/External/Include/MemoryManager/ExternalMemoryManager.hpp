@@ -86,41 +86,23 @@ namespace MemoryManager {
 				if (line.empty())
 					continue; // ?
 
-				std::stringstream ss{ line };
+				std::uintptr_t begin, end;
+				std::array<char, 4> perms{};
+				std::string name;
+				name.resize(line.length());
 
-				std::uintptr_t begin;
-				std::uintptr_t end;
-				std::array<char, 4> permissions{};
+				sscanf(line.c_str(), "%zx-%zx %c%c%c%c %*x %*x:%*x %*x %255s",
+					&begin, &end, &perms[0], &perms[1], &perms[2], &perms[3], name.data());
 
-				ss >> std::hex >> begin;
-				ss.ignore(1); // space
-				ss >> end >> std::dec;
-				ss.ignore(1); // space
-				ss.read(permissions.begin(), 4);
-				ss.ignore(1 /*space*/ + 8 /*offset*/ + 1 /*space*/ + 2 /*major dev*/ + 1 /*colon*/ + 2 /*minor dev*/ + 1 /*space*/);
-				ss.ignore(std::numeric_limits<std::streamsize>::max(), ' '); // skip over inode
-				// skip over spaces
-				while(!ss.eof() && ss.peek() == ' ')
-					ss.ignore(1);
+				name.resize(strlen(name.data()));
 
-				std::optional<std::string> name = std::nullopt;
 				bool special = false;
-				if (!ss.eof()) {
-					name = { static_cast<char>(ss.get()) };
-					if ((*name)[0] == '[') {
-						special = true;
-					}
-					std::string token;
-					while (!ss.eof()) {
-						ss >> token;
-						if (token.empty() || token == "(deleted)")
-							break;
-						*name += token + " ";
-					}
-					name->pop_back(); // the space
+
+				if(!name.empty() && name[0] == '[') {
+					special = true;
 				}
 
-				newLayout.emplace(this, begin, end - begin, Flags{ permissions }, name, special);
+				newLayout.emplace(this, begin, end - begin, Flags{ perms }, name.empty() ? std::nullopt : std::optional{ name }, special);
 			}
 
 			fileStream.close();
