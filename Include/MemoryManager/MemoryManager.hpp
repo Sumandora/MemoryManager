@@ -1,5 +1,5 @@
-#ifndef FORCEWRITE_HPP
-#define FORCEWRITE_HPP
+#ifndef MEMORYMANAGER_HPP
+#define MEMORYMANAGER_HPP
 
 #include <array>
 #include <bitset>
