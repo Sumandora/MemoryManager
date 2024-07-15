@@ -8,25 +8,24 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <utility>
 
 namespace MemoryManager {
-	class MemoryManager;
-
-	class ProtectionFlags : public std::bitset<3> { // Flags#private may not be applicable for certain tasks like allocation or protection. Use this class instead.
+	class Flags : public std::bitset<3> {
 	public:
-		constexpr explicit ProtectionFlags(std::array<char, 3> permissions)
+		constexpr explicit Flags(std::array<char, 3> permissions)
 		{
 			set(0, permissions.at(0) == 'r');
 			set(1, permissions.at(1) == 'w');
 			set(2, permissions.at(2) == 'x');
 		}
-		constexpr ProtectionFlags(const char rwx[3])
+		constexpr Flags(const char rwx[3])
 		{
 			set(0, rwx[0] == 'r');
 			set(1, rwx[1] == 'w');
 			set(2, rwx[2] == 'x');
 		}
-		constexpr ProtectionFlags(
+		constexpr Flags(
 			bool readable,
 			bool writable,
 			bool executable)
@@ -36,98 +35,94 @@ namespace MemoryManager {
 			set(2, executable);
 		}
 
-		[[nodiscard]] constexpr bool isReadable() const { return (*this)[0]; }
-		[[nodiscard]] constexpr bool isWriteable() const { return (*this)[1]; }
-		[[nodiscard]] constexpr bool isExecutable() const { return (*this)[2]; }
-	};
+		[[nodiscard]] constexpr bool isReadable() const { return test(0); }
+		[[nodiscard]] constexpr bool isWriteable() const { return test(1); }
+		[[nodiscard]] constexpr bool isExecutable() const { return test(2); }
 
-	class Flags : public std::bitset<4> {
-	public:
-		constexpr explicit Flags(std::array<char, 4> permissions) // Parses a "rwxp" string from the /proc/$/maps interface
-		{
-			set(0, permissions.at(0) == 'r');
-			set(1, permissions.at(1) == 'w');
-			set(2, permissions.at(2) == 'x');
-			set(3, permissions.at(3) == 'p');
-		}
-		constexpr Flags(const char rwx[4])
-		{
-			set(0, rwx[0] == 'r');
-			set(1, rwx[1] == 'w');
-			set(2, rwx[2] == 'x');
-			set(3, rwx[3] == 'p');
-		}
-		constexpr Flags(
-			bool readable,
-			bool writable,
-			bool executable,
-			bool _private)
-		{
-			set(0, readable);
-			set(1, writable);
-			set(2, executable);
-			set(3, _private);
-		}
-
-		[[nodiscard]] constexpr bool isReadable() const { return (*this)[0]; }
-		[[nodiscard]] constexpr bool isWriteable() const { return (*this)[1]; }
-		[[nodiscard]] constexpr bool isExecutable() const { return (*this)[2]; }
-		[[nodiscard]] constexpr bool isPrivate() const { return (*this)[3]; }
+		constexpr void setReadable(bool b) { set(0, b); }
+		constexpr void setWriteable(bool b) { set(1, b); }
+		constexpr void setExecutable(bool b) { set(2, b); }
 
 		[[nodiscard]] constexpr std::string asString() const
 		{
 			std::string string;
+			string.reserve(3);
+
 			string += test(0) ? 'r' : '-';
 			string += test(1) ? 'w' : '-';
 			string += test(2) ? 'x' : '-';
-			string += test(3) ? 'p' : '-';
 			return string;
 		}
 	};
 
-	constexpr bool operator==(const Flags& flags, const ProtectionFlags& protectionFlags)
-	{
-		return flags.isReadable() == protectionFlags.isReadable() && flags.isWriteable() == protectionFlags.isWriteable() && flags.isExecutable() == protectionFlags.isExecutable();
-	}
 
-	class CachedRegion {
-		std::uintptr_t remoteAddress;
-		std::size_t length;
-		std::unique_ptr<std::byte[]> bytes;
-		friend class MemoryRegion;
+	template<typename Region>
+	concept AddressAware = requires(Region reg) {
+		{ reg.getAddress() } -> std::same_as<std::uintptr_t>;
+	};
+
+	template<typename Region>
+	concept LengthAware = requires(Region reg) {
+		{ reg.getLength() } -> std::same_as<std::size_t>;
+	};
+
+	template<typename Region>
+	concept FlagAware = requires(Region reg) {
+		{ reg.getFlags() } -> std::same_as<Flags>;
+	};
+
+	template<typename Region>
+	concept NameAware = requires(Region reg) {
+		{ reg.getName() } -> std::same_as<std::optional<std::string>>;
+	};
+
+	template<typename Region>
+	concept Readable = requires(Region reg) {
+		{ reg.read() } -> std::same_as<std::byte*>;
+	};
+
+	template<typename Region> requires AddressAware<Region>
+	struct RegionComparator {
+		using is_transparent = void;
+
+		constexpr bool operator()(const Region& lhs, const Region& rhs) const
+		{
+			return lhs.getAddress() < rhs.getAddress();
+		}
+
+		constexpr bool operator()(std::uintptr_t lhs, const Region& rhs) const
+		{
+			return lhs < rhs.getAddress();
+		}
+	};
+
+	// FancyPointer for iterating over cached regions
+	struct CachedByte {
+		std::byte value;
+		std::byte* pointer;
+
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "google-runtime-operator"
+#pragma ide diagnostic ignored "google-explicit-constructor"
+		constexpr std::byte* operator&() const { return pointer; }
+		constexpr operator std::byte() const { return value; }
+#pragma clang diagnostic pop
+	};
+
+	template<typename Base>
+	class CachableMixin {
+		mutable std::unique_ptr<std::byte[]> bytes = nullptr;
+
+		constexpr void ensureCached() const
+		{
+			if (bytes)
+				return;
+			bytes = std::unique_ptr<std::byte[]>{ static_cast<const Base*>(this)->read() };
+		}
 
 	public:
-		constexpr CachedRegion(std::uintptr_t remoteAddress, std::size_t length)
-			: remoteAddress(remoteAddress)
-			, length(length)
-			, bytes(std::unique_ptr<std::byte[]>{ new std::byte[length] })
-		{
-		}
-
-		// This is not really good, but it's the best I can do here to support STL code that wants to take the address of the iterated type
-		struct CachedByte {
-			std::byte value;
-			std::byte* pointer;
-
-			// Since unary-& is gone, we need to somehow allow this by other means
-			template <typename Self>
-			[[nodiscard]] constexpr auto getThis(this Self&& self) { return self; }
-
-			constexpr std::byte* operator&() const { return pointer; }
-			constexpr operator std::byte() const { return value; }
-		};
-
-		[[nodiscard]] CachedByte operator[](std::size_t i) const
-		{
-			return { bytes[i], reinterpret_cast<std::byte*>(remoteAddress + i) };
-		}
-
-		[[nodiscard]] constexpr std::uintptr_t getRemoteAddress() const { return remoteAddress; }
-		[[nodiscard]] constexpr std::size_t getLength() const { return length; }
-		[[nodiscard]] constexpr std::byte* getBytes() const { return bytes.get(); }
-
 		class CacheIterator {
-			const CachedRegion* parent;
+			const CachableMixin* parent;
 			std::size_t index;
 
 		public:
@@ -137,11 +132,12 @@ namespace MemoryManager {
 			{
 			}
 
-			constexpr CacheIterator(const CachedRegion* parent, std::size_t index)
+			constexpr CacheIterator(const CachableMixin* parent, std::size_t index)
 				: parent(parent)
 				, index(index)
 			{
 			}
+
 			using iterator_category = std::bidirectional_iterator_tag;
 			using value_type = CachedByte;
 			using reference = CachedByte&;
@@ -183,20 +179,12 @@ namespace MemoryManager {
 
 			constexpr auto operator<=>(std::uintptr_t pointer) const
 			{
-				return parent->remoteAddress + index <=> pointer;
-			}
-			constexpr auto operator<=>(void* pointer) const
-			{
-				return this->operator<=>(reinterpret_cast<std::uintptr_t>(pointer));
+				return static_cast<const Base*>(parent)->getAddress() + index <=> pointer;
 			}
 
 			constexpr auto operator==(std::uintptr_t pointer) const
 			{
-				return parent->remoteAddress + index == pointer;
-			}
-			constexpr auto operator==(void* pointer) const
-			{
-				return this->operator==(reinterpret_cast<std::uintptr_t>(pointer));
+				return static_cast<const Base*>(parent)->getAddress() + index == pointer;
 			}
 
 			constexpr bool operator==(const CacheIterator& rhs) const
@@ -205,219 +193,170 @@ namespace MemoryManager {
 			}
 		};
 
+		[[nodiscard]] CachedByte operator[](std::size_t i) const
+		{
+			ensureCached();
+			return { bytes[i], reinterpret_cast<std::byte*>(static_cast<const Base*>(this)->getAddress() + i) };
+		}
+
 		[[nodiscard]] constexpr CacheIterator cbegin() const
 		{
+			ensureCached();
 			return { this, 0 };
 		}
 		[[nodiscard]] constexpr CacheIterator cend() const
 		{
-			return { this, getLength() };
+			ensureCached();
+			return { this, static_cast<const Base*>(this)->getLength() };
 		}
 
 		[[nodiscard]] constexpr std::reverse_iterator<CacheIterator> crbegin() const
 		{
+			ensureCached();
 			return std::make_reverse_iterator(cend());
 		}
 		[[nodiscard]] constexpr std::reverse_iterator<CacheIterator> crend() const
 		{
+			ensureCached();
 			return std::make_reverse_iterator(cbegin());
 		}
 	};
 
-	class MemoryRegion {
-		MemoryManager* parent;
-		std::uintptr_t beginAddress;
-		std::size_t length;
-		Flags flags;
-		std::optional<std::string> name;
-		// Special regions are generally not supposed to be read
-		// on Linux those include initial heap, initial stack, and more
-		bool special;
-		mutable std::unique_ptr<CachedRegion> cacheRegion;
+	// clang-format off
+	template<typename Region>
+	concept Iterable =
+		AddressAware<Region> &&
+		LengthAware<Region> &&
+		Readable<Region> &&
+		std::derived_from<Region, CachableMixin<Region>>;
 
+	template<typename Region>
+	concept MemoryRegion =
+		AddressAware<Region> ||
+		LengthAware<Region> ||
+		FlagAware<Region> ||
+		NameAware<Region> ||
+		Readable<Region> ||
+		Iterable<Region>;
+
+	// This one can be used to check if you have implemented the complete interface
+	template<typename Region>
+	concept CompleteMemoryRegion =
+		AddressAware<Region> &&
+		LengthAware<Region> &&
+		FlagAware<Region> &&
+		NameAware<Region> &&
+		Readable<Region> &&
+		Iterable<Region>;
+	// clang-format on
+
+	template<typename Region> requires MemoryRegion<Region>
+	class MemoryLayout : public std::set<Region, RegionComparator<Region>> {
 	public:
-		constexpr MemoryRegion(MemoryManager* parent, std::uintptr_t beginAddress, std::size_t length, Flags flags, std::optional<std::string> name, bool special)
-			: parent(parent)
-			, beginAddress(beginAddress)
-			, length(length)
-			, flags(flags)
-			, name(std::move(name))
-			, special(special)
-			, cacheRegion(nullptr)
+		[[nodiscard]] constexpr const Region* findRegion(std::uintptr_t address) const
 		{
-		}
-
-		[[nodiscard]] constexpr std::uintptr_t getBeginAddress() const { return beginAddress; }
-		[[nodiscard]] constexpr std::size_t getLength() const { return length; }
-		[[nodiscard]] constexpr std::uintptr_t getEndAddress() const { return beginAddress + length; }
-		[[nodiscard]] constexpr const Flags& getFlags() const { return flags; }
-		[[nodiscard]] constexpr const std::optional<std::string>& getName() const { return name; }
-		[[nodiscard]] constexpr bool isSpecial() const { return special; }
-
-		[[nodiscard]] constexpr bool isInside(std::uintptr_t address) const
-		{
-			return address >= beginAddress && address < beginAddress + length;
-		}
-
-		// Calling this on sections that are not readable by whatever means will cause undefined behavior
-		[[nodiscard]] constexpr const std::unique_ptr<CachedRegion>& cache() const;
-
-		struct Compare {
-			using is_transparent = void;
-
-			constexpr bool operator()(const MemoryRegion& lhs, const MemoryRegion& rhs) const
-			{
-				return lhs.beginAddress < rhs.beginAddress;
-			}
-
-			constexpr bool operator()(std::uintptr_t lhs, const MemoryRegion& rhs) const
-			{
-				return lhs < rhs.beginAddress;
-			}
-		};
-	};
-
-	class MemoryLayout : public std::set<MemoryRegion, MemoryRegion::Compare> {
-	public:
-		[[nodiscard]] constexpr const MemoryRegion* findRegion(std::uintptr_t address) const
-		{
-			if (empty())
+			if (this->empty())
 				return nullptr;
-			auto it = upper_bound(address);
-			if (it == begin())
+			auto it = this->upper_bound(address);
+			if (it == this->begin())
 				return nullptr;
 			it--;
 			auto& region = *it;
-			if (region.isInside(address))
+			if (region.getAddress() >= address && address < region.getAddress() + region.getLength())
 				return &region;
 			return nullptr;
 		}
-#ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		[[nodiscard]] constexpr const MemoryRegion* findRegion(const void* address) const
-		{
-			return findRegion(reinterpret_cast<std::uintptr_t>(address));
-		}
-#endif
 	};
 
-	class MemoryManager {
-	public:
-		virtual const MemoryLayout& getLayout() const = 0;
+	// MemoryManager
+	template<typename MemMgr>
+	concept LayoutAware = AddressAware<typename MemMgr::RegionT> && requires(MemMgr manager) {
+		{ std::as_const(manager).getLayout() } -> std::same_as<const MemoryLayout<typename MemMgr::RegionT>&>;
 
 		// Warning: Calling this will invalidate all references to MemoryRegions
-		virtual void update() = 0;
+		{ manager.update() };
+	};
 
-		virtual std::size_t getPageGranularity() const = 0;
+	template<typename MemMgr>
+	concept GranularityAware = requires(const MemMgr manager) {
+		{ manager.getPageGranularity() } -> std::same_as<std::size_t>;
+	};
 
+	template<typename MemMgr>
+	concept Allocator = requires(const MemMgr manager, std::uintptr_t address, std::size_t size, Flags protection) {
 		/**
 		 * Allocates a memory block
-		 * @param address if set to something that is not a nullptr then indicates the location of the new memory, in that case address must be aligned to page granularity
+		 * @param address if not 0: indicates the location of the new memory, in that case address must be aligned to page granularity
 		 * @param size may get rounded up to pagesize
 		 * @returns pointer to the new memory
 		 */
-		virtual std::uintptr_t allocate(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const = 0;
+		{ manager.allocate(address, size, protection) } -> std::same_as<std::uintptr_t>;
+	};
+
+	template<typename MemMgr>
+	concept Deallocator = requires(const MemMgr manager, std::uintptr_t address, std::size_t size) {
 		/**
+		 * Deallocates a memory block
 		 * @param address must be aligned to page granularity
 		 */
-		virtual void deallocate(std::uintptr_t address, std::size_t size) const = 0;
+		{ manager.deallocate(address, size) };
+	};
+
+	template<typename MemMgr>
+	concept Protector = requires(const MemMgr manager, std::uintptr_t address, std::size_t size, Flags protection) {
 		/**
 		 * Changes protection of the memory page
 		 * @param address must be aligned to page granularity
 		 */
-		virtual void protect(std::uintptr_t address, std::size_t size, ProtectionFlags protection) const = 0;
+		{ manager.protect(address, size, protection) };
+	};
 
-#ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		constexpr std::uintptr_t allocate(void* address, std::size_t size, ProtectionFlags protection) const
-		{
-			return allocate(reinterpret_cast<std::uintptr_t>(address), size, protection);
-		}
-		constexpr void deallocate(void* address, std::size_t size) const
-		{
-			deallocate(reinterpret_cast<std::uintptr_t>(address), size);
-		}
-		constexpr void protect(void* address, std::size_t size, ProtectionFlags protection) const
-		{
-			protect(reinterpret_cast<std::uintptr_t>(address), size, protection);
-		}
-#endif
+	template<typename MemMgr>
+	concept Reader = requires(const MemMgr manager, std::uintptr_t address, void* content, std::size_t length) {
+		{ manager.read(address, content, length) };
+	};
 
-		virtual void read(std::uintptr_t address, void* content, std::size_t length) const = 0;
-		virtual void write(std::uintptr_t address, const void* content, std::size_t length) const = 0;
-#ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		constexpr void read(const void* address, void* content, std::size_t length) const
-		{
-			read(reinterpret_cast<std::uintptr_t>(address), content, length);
-		}
-		constexpr void write(void* address, const void* content, std::size_t length) const
-		{
-			write(reinterpret_cast<std::uintptr_t>(address), content, length);
-		}
-#endif
+	template<typename MemMgr>
+	concept Writer = requires(const MemMgr manager, std::uintptr_t address, const void* content, std::size_t length) {
+		{ manager.write(address, content, length) };
+	};
 
-		template <typename T>
-		constexpr void read(std::uintptr_t address, T* content) const
-		{
-			read(address, content, sizeof(T));
-		}
-
-		template <typename T>
-		[[nodiscard]] constexpr T read(std::uintptr_t address) const
-		{
-			T obj;
-			read(address, &obj, sizeof(T));
-			return obj;
-		}
-
-		template <typename T>
-		constexpr void write(std::uintptr_t address, const T& obj) const
-		{
-			write(address, &obj, sizeof(obj));
-		}
-#ifdef MEMORYMANAGER_DEFINE_PTR_WRAPPER
-		template <typename T>
-		constexpr void read(const void* address, T* content) const
-		{
-			read<T>(reinterpret_cast<std::uintptr_t>(address), content);
-		}
-
-		template <typename T>
-		[[nodiscard]] constexpr T read(const void* address) const
-		{
-			return read<T>(reinterpret_cast<std::uintptr_t>(address));
-		}
-
-		template <typename T>
-		constexpr void write(void* address, const T& obj) const
-		{
-			write<T>(reinterpret_cast<std::uintptr_t>(address), obj);
-		}
-#endif
-
+	template<typename MemMgr>
+	concept Traits = requires {
 		/**
 		 * Indicates if the memory manager requires permissions for reading from memory pages
 		 */
-		virtual bool requiresPermissionsForReading() const = 0;
+		{ MemMgr::RequiresPermissionsForReading } -> std::convertible_to<bool>;
 		/**
 		 * Indicates if the memory manager requires permissions for writing to memory pages
 		 */
-		virtual bool requiresPermissionsForWriting() const = 0;
-
-		/**
-		 * Indicates whether the memory manager is fetching memory from a remote target.
-		 * If returning true, this basically states that memory doesn't need to be copied into the local address space, but can be read by dereferencing pointers
-		 */
-		virtual bool isRemoteAddressSpace() const = 0;
+		{ MemMgr::RequiresPermissionsForWriting } -> std::convertible_to<bool>;
 	};
 
-	constexpr const std::unique_ptr<CachedRegion>& MemoryRegion::cache() const
-	{
-		if (cacheRegion)
-			return cacheRegion;
-		cacheRegion = std::make_unique<CachedRegion>(beginAddress, length);
-		parent->read(beginAddress, cacheRegion->bytes.get(), length);
-		return cacheRegion;
-	}
+	// clang-format off
+	template<typename MemMgr>
+	concept MemoryManager =
+		LayoutAware<MemMgr> ||
+	    GranularityAware<MemMgr> ||
+	    Allocator<MemMgr> ||
+	    Deallocator<MemMgr> ||
+	    Protector<MemMgr> ||
+	    Reader<MemMgr> ||
+	    Writer<MemMgr> ||
+	    Traits<MemMgr>;
 
+	// This one can be used to check if you have implemented the complete interface
+	template<typename MemMgr>
+	concept CompleteMemoryManager =
+		LayoutAware<MemMgr> &&
+		GranularityAware<MemMgr> &&
+		Allocator<MemMgr> &&
+		Deallocator<MemMgr> &&
+		Protector<MemMgr> &&
+		Reader<MemMgr> &&
+		Writer<MemMgr> &&
+		Traits<MemMgr>;
+	// clang-format on
 }
 
 #endif
