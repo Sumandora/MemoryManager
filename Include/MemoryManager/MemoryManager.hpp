@@ -248,6 +248,7 @@ namespace MemoryManager {
 		LengthAware<Region> ||
 		FlagAware<Region> ||
 		NameAware<Region> ||
+		PathAware<Region> ||
 		Readable<Region> ||
 		Iterable<Region>;
 
@@ -258,6 +259,7 @@ namespace MemoryManager {
 		LengthAware<Region> &&
 		FlagAware<Region> &&
 		NameAware<Region> &&
+		PathAware<Region> &&
 		Readable<Region> &&
 		Iterable<Region>;
 	// clang-format on
@@ -274,7 +276,7 @@ namespace MemoryManager {
 				return nullptr;
 			it--;
 			auto& region = *it;
-			if (region.getAddress() >= address && address < region.getAddress() + region.getLength())
+			if (address >= region.getAddress() && address < region.getAddress() + region.getLength())
 				return &region;
 			return nullptr;
 		}
