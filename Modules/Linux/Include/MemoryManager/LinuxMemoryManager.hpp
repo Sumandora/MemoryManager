@@ -23,7 +23,8 @@ namespace MemoryManager {
 
 	public:
 		struct NamedData {
-			std::string name;
+			std::string name; // may be a path
+
 			bool deleted = false;
 			bool special = false;
 		};
@@ -61,9 +62,23 @@ namespace MemoryManager {
 			return flags;
 		}
 
+		[[nodiscard]] std::optional<std::string> getPath() const
+		{
+			if(namedData->special)
+				return std::nullopt;
+			return namedData.and_then([](const NamedData& d) -> std::optional<std::string> {
+				if(!d.name.starts_with('/'))
+					return std::nullopt;
+				return d.name;
+			});
+		}
+
 		[[nodiscard]] std::optional<std::string> getName() const
 		{
-			return namedData.transform([](const NamedData& d) { return d.name; });
+			return namedData.transform([](const NamedData& d) {
+				auto pos = d.name.rfind('/');
+				return pos == std::string::npos || pos == d.name.size() ? d.name : d.name.substr(pos + 1);
+			});
 		}
 
 		[[nodiscard]] bool isDeleted() const

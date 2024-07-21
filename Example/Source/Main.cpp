@@ -12,7 +12,9 @@ int main()
 
 	std::cout << std::hex;
 	for (const auto& reg : memoryManager.getLayout()) {
-		std::cout << (reg.getName().has_value() ? reg.getName().value() : std::string("(empty)")) << ' ' << reg.getFlags().asString() << ' ' << reg.getAddress() << '-' << reg.getAddress() + reg.getLength() << std::endl;
+		auto name = reg.getName().value_or("unnamed");
+		auto path = reg.getPath().value_or("pathless");
+		std::cout << path << " (" << name << ") " << reg.getFlags().asString() << ' ' << reg.getAddress() << '-' << reg.getAddress() + reg.getLength() << std::endl;
 	}
 
 	std::cout << "Allocated memory at " << myInteger << std::endl;

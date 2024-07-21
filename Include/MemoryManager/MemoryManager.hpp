@@ -77,6 +77,11 @@ namespace MemoryManager {
 	};
 
 	template<typename Region>
+	concept PathAware = requires(Region reg) {
+		{ reg.getPath() } -> std::same_as<std::optional<std::string>>;
+	};
+
+	template<typename Region>
 	concept Readable = requires(Region reg) {
 		{ reg.read() } -> std::same_as<std::byte*>;
 	};
@@ -191,6 +196,13 @@ namespace MemoryManager {
 			{
 				return index == rhs.index;
 			}
+
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "google-explicit-constructor"
+			constexpr operator std::uintptr_t() {
+				return static_cast<const Base*>(parent)->getAddress() + index;
+			}
+#pragma clang diagnostic pop
 		};
 
 		[[nodiscard]] CachedByte operator[](std::size_t i) const
