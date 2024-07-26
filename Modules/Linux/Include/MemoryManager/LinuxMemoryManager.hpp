@@ -107,8 +107,8 @@ namespace MemoryManager {
 	public:
 		static constexpr bool CanRead = Local || Read;
 		static constexpr bool CanWrite = Local || Write;
-		static constexpr bool RequiresPermissionsForReading = Local && Write;
-		static constexpr bool RequiresPermissionsForWriting = Local && Read;
+		static constexpr bool RequiresPermissionsForReading = Local && !Read;
+		static constexpr bool RequiresPermissionsForWriting = Local && !Write;
 
 		using RegionT = LinuxRegion<Self, CanRead>;
 
