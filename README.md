@@ -12,18 +12,17 @@ It is also an attempt of making external and internal mod (and game hacking) dev
 
 ## Usage
 
-The memory manager can be used in two modes:
+This repository ships with a Linux default implementation. Once added the memory manager can be used in two modes:
 
 ### Local Memory Management
 
 For managing local process memory:
 
 ```c++
-#define MEMORYMANAGER_DEFINE_PTR_WRAPPER
-#include "MemoryManager/LocalMemoryManager.hpp" 
+#include "MemoryManager/LinuxMemoryManager.hpp" 
 
 // Create manager
-MemoryManager::LocalMemoryManager memoryManager;
+MemoryManager::LinuxMemoryManager<false /*Force Read*/, true /*Force Write*/, true /*LOCAL*/> memoryManager;
 
 // Allocate a memory page
 void* ptr = memoryManager.allocate(nullptr, ..., PROT_NONE);
@@ -32,35 +31,33 @@ void* ptr = memoryManager.allocate(nullptr, ..., PROT_NONE);
 memoryManager.update();
 
 // Read the memory on the new page
-auto value = memoryManager.read<T>(ptr);
+int value;
+memoryManager.read(ptr, &value, sizeof(int));
 // Write to the memory on the new page
-memoryManager.write<T>(ptr, ...);
+memoryManager.write(ptr, &value, sizeof(int));
 ```
-
-The `MEMORYMANAGER_DEFINE_PTR_WRAPPER` macro can be used to automate void* -> uintptr_t conversions.
 
 ### External Memory Management
 
 For managing external process memory:
 
 ```c++
-#include "MemoryManager/ExternalMemoryManager.hpp"
+#include "MemoryManager/LinuxMemoryManager.hpp"
 
 // Create manager
-MemoryManager::ExternalMemoryManager memoryManager(processId);
+MemoryManager::LinuxMemoryManager<true /*Read*/, true /*Write*/> memoryManager(processId);
 
 // Make the memory manager aware of all memory sections
 memoryManager.update();
 
 // Read the memory at "ptr"
-auto value = memoryManager.read<T>(ptr);
+int value;
+memoryManager.read(ptr, &value, sizeof(int));
 // Write to the memory at "ptr"
-memoryManager.write<T>(ptr, ...);
+memoryManager.write(ptr, &value, sizeof(int));
 ```
 
 ## Implementation
 
-The memory manager detects memory regions by parsing `/proc/[pid]/maps`. It maintains an internal layout of the memory
-regions.  
-Reads and writes to protected memory are done through `/proc/[pid]/mem`, which works because
-of [magic](https://offlinemark.com/2021/05/12/an-obscure-quirk-of-proc/).
+The memory manager detects memory regions by parsing `/proc/[pid]/maps`. It maintains an internal layout of the memory regions.  
+Reads and writes to protected memory are done through `/proc/[pid]/mem`, which works because of [magic](https://offlinemark.com/2021/05/12/an-obscure-quirk-of-proc/).
