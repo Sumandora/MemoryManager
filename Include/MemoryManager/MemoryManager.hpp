@@ -327,24 +327,22 @@ namespace MemoryManager {
 
 	template<typename MemMgr>
 	concept Reader = requires(const MemMgr manager, std::uintptr_t address, void* content, std::size_t length) {
+		/**
+		 * Indicates if the memory manager requires permissions for reading from memory pages
+		 */
+		{ MemMgr::RequiresPermissionsForReading } -> std::convertible_to<bool>;
+
 		{ manager.read(address, content, length) };
 	};
 
 	template<typename MemMgr>
 	concept Writer = requires(const MemMgr manager, std::uintptr_t address, const void* content, std::size_t length) {
-		{ manager.write(address, content, length) };
-	};
-
-	template<typename MemMgr>
-	concept Traits = requires {
-		/**
-		 * Indicates if the memory manager requires permissions for reading from memory pages
-		 */
-		{ MemMgr::RequiresPermissionsForReading } -> std::convertible_to<bool>;
 		/**
 		 * Indicates if the memory manager requires permissions for writing to memory pages
 		 */
 		{ MemMgr::RequiresPermissionsForWriting } -> std::convertible_to<bool>;
+
+		{ manager.write(address, content, length) };
 	};
 
 	// clang-format off
@@ -356,8 +354,7 @@ namespace MemoryManager {
 	    Deallocator<MemMgr> ||
 	    Protector<MemMgr> ||
 	    Reader<MemMgr> ||
-	    Writer<MemMgr> ||
-	    Traits<MemMgr>;
+	    Writer<MemMgr>;
 
 	// This one can be used to check if you have implemented the complete interface
 	template<typename MemMgr>
@@ -368,8 +365,7 @@ namespace MemoryManager {
 		Deallocator<MemMgr> &&
 		Protector<MemMgr> &&
 		Reader<MemMgr> &&
-		Writer<MemMgr> &&
-		Traits<MemMgr>;
+		Writer<MemMgr>;
 	// clang-format on
 }
 
