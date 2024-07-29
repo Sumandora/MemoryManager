@@ -222,15 +222,18 @@ namespace MemoryManager {
 				std::uintptr_t begin, end;
 				std::array<char, 3> perms{};
 				std::string name;
-				name.resize(line.length());
 
+				int offset;
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "cert-err34-c"
-				sscanf(line.c_str(), "%zx-%zx %c%c%c%*c %*x %*x:%*x %*x %s[]",
-					&begin, &end, &perms[0], &perms[1], &perms[2], name.data());
+				sscanf(line.c_str(), "%zx-%zx %c%c%c%*c %*x %*x:%*x %*x%n",
+					&begin, &end, &perms[0], &perms[1], &perms[2], &offset);
 #pragma clang diagnostic pop
 
-				name.resize(strlen(name.data()));
+				while(offset < line.length() && line[offset] == ' ')
+					offset++;
+				if(offset < line.length())
+					name = line.c_str() + offset;
 
 				Flags f{ perms };
 
