@@ -6,8 +6,8 @@
 #include <cstring>
 #include <fcntl.h>
 #include <fstream>
-#include <limits>
 #include <sys/mman.h>
+#include <unistd.h>
 #include <variant>
 
 namespace MemoryManager {
@@ -64,10 +64,10 @@ namespace MemoryManager {
 
 		[[nodiscard]] std::optional<std::string> getPath() const
 		{
-			if(namedData->special)
+			if (namedData->special)
 				return std::nullopt;
 			return namedData.and_then([](const NamedData& d) -> std::optional<std::string> {
-				if(!d.name.starts_with('/'))
+				if (!d.name.starts_with('/'))
 					return std::nullopt;
 				return d.name;
 			});
@@ -128,7 +128,7 @@ namespace MemoryManager {
 			if constexpr (!Read && !Write)
 				return std::monostate{};
 			else {
-				int flag;
+				int flag = 0;
 				if constexpr (Read && Write)
 					flag = O_RDWR;
 				else if constexpr (Read)
@@ -186,7 +186,7 @@ namespace MemoryManager {
 		void close()
 			requires Read || Write
 		{
-			if(memInterface == INVALID_FILE_HANDLE)
+			if (memInterface == INVALID_FILE_HANDLE)
 				return;
 
 			::close(memInterface);
@@ -196,7 +196,7 @@ namespace MemoryManager {
 		void reopen()
 			requires Read || Write
 		{
-			if(memInterface != INVALID_FILE_HANDLE)
+			if (memInterface != INVALID_FILE_HANDLE)
 				return;
 
 			memInterface = openFileHandle(pid);
@@ -219,20 +219,18 @@ namespace MemoryManager {
 				if (line.empty())
 					continue; // ?
 
-				std::uintptr_t begin, end;
+				std::uintptr_t begin = 0, end = 0;
 				std::array<char, 3> perms{};
 				std::string name;
 
-				int offset;
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "cert-err34-c"
-				sscanf(line.c_str(), "%zx-%zx %c%c%c%*c %*x %*x:%*x %*x%n",
+				int offset = 0;
+				// NOLINTNEXTLINE(cert-err34-c)
+				(void)sscanf(line.c_str(), "%zx-%zx %c%c%c%*c %*x %*x:%*x %*x%n",
 					&begin, &end, &perms[0], &perms[1], &perms[2], &offset);
-#pragma clang diagnostic pop
 
-				while(offset < line.length() && line[offset] == ' ')
+				while (offset < line.length() && line[offset] == ' ')
 					offset++;
-				if(offset < line.length())
+				if (offset < line.length())
 					name = line.c_str() + offset;
 
 				Flags f{ perms };

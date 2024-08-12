@@ -21,16 +21,16 @@ int main()
 
 	auto integerPtr = reinterpret_cast<std::uintptr_t>(myInteger);
 
-	auto region = memoryManager.getLayout().findRegion(integerPtr);
+	const auto* region = memoryManager.getLayout().findRegion(integerPtr);
 	assert(region != nullptr);
-	auto sameRegion = memoryManager.getLayout().findRegion(region->getAddress());
+	const auto* sameRegion = memoryManager.getLayout().findRegion(region->getAddress());
 	assert(region == sameRegion);
 
 	std::cout << "Page region: " << region->getAddress() << "-" << region->getAddress() + region->getLength() << std::endl;
 
 	std::cout << std::dec;
 
-	int val;
+	int val = 0;
 	memoryManager.read(integerPtr, &val, sizeof(int));
 	std::cout << "Before writing: " << val << std::endl;
 	val = 123;

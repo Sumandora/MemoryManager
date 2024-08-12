@@ -3,8 +3,8 @@
 
 #include <array>
 #include <bitset>
-#include <compare>
 #include <cstdint>
+#include <cwctype>
 #include <memory>
 #include <optional>
 #include <set>
@@ -19,6 +19,7 @@ namespace MemoryManager {
 			set(1, permissions.at(1) == 'w');
 			set(2, permissions.at(2) == 'x');
 		}
+		// NOLINTNEXTLINE(google-explicit-constructor, hicpp-explicit-conversions)
 		constexpr Flags(const char rwx[3])
 		{
 			set(0, rwx[0] == 'r');
@@ -55,38 +56,38 @@ namespace MemoryManager {
 		}
 	};
 
-
-	template<typename Region>
-	concept AddressAware = requires(Region reg) {
+	template <typename Region>
+	concept AddressAware = requires(const Region reg) {
 		{ reg.getAddress() } -> std::same_as<std::uintptr_t>;
 	};
 
-	template<typename Region>
-	concept LengthAware = requires(Region reg) {
+	template <typename Region>
+	concept LengthAware = requires(const Region reg) {
 		{ reg.getLength() } -> std::same_as<std::size_t>;
 	};
 
-	template<typename Region>
-	concept FlagAware = requires(Region reg) {
+	template <typename Region>
+	concept FlagAware = requires(const Region reg) {
 		{ reg.getFlags() } -> std::same_as<Flags>;
 	};
 
-	template<typename Region>
-	concept NameAware = requires(Region reg) {
+	template <typename Region>
+	concept NameAware = requires(const Region reg) {
 		{ reg.getName() } -> std::same_as<std::optional<std::string>>;
 	};
 
-	template<typename Region>
-	concept PathAware = requires(Region reg) {
+	template <typename Region>
+	concept PathAware = requires(const Region reg) {
 		{ reg.getPath() } -> std::same_as<std::optional<std::string>>;
 	};
 
-	template<typename Region>
-	concept Readable = requires(Region reg) {
+	template <typename Region>
+	concept Readable = requires(const Region reg) {
 		{ reg.read() } -> std::same_as<std::byte*>;
 	};
 
-	template<typename Region> requires AddressAware<Region>
+	template <typename Region>
+		requires AddressAware<Region>
 	struct RegionComparator {
 		using is_transparent = void;
 
@@ -106,23 +107,21 @@ namespace MemoryManager {
 		std::byte value;
 		std::byte* pointer;
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "google-runtime-operator"
-#pragma ide diagnostic ignored "google-explicit-constructor"
+		// NOLINTNEXTLINE(google-runtime-operator)
 		constexpr std::byte* operator&() const { return pointer; }
+		// NOLINTNEXTLINE(google-explicit-constructor, hicpp-explicit-conversions)
 		constexpr operator std::byte() const { return value; }
-#pragma clang diagnostic pop
 	};
 
-	template<typename Base>
+	template <typename Base>
 	class CachableMixin {
 		mutable std::unique_ptr<std::byte[]> bytes = nullptr;
 
-		constexpr void ensureCached() const
+		constexpr std::byte* getBytes() const
 		{
-			if (bytes)
-				return;
-			bytes = std::unique_ptr<std::byte[]>{ static_cast<const Base*>(this)->read() };
+			if (!bytes)
+				bytes = std::unique_ptr<std::byte[]>{ static_cast<const Base*>(this)->read() };
+			return bytes.get();
 		}
 
 	public:
@@ -197,39 +196,33 @@ namespace MemoryManager {
 				return index == rhs.index;
 			}
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "google-explicit-constructor"
-			constexpr operator std::uintptr_t() {
+			// NOLINTNEXTLINE(google-explicit-constructor, hicpp-explicit-conversions)
+			constexpr operator std::uintptr_t()
+			{
 				return static_cast<const Base*>(parent)->getAddress() + index;
 			}
-#pragma clang diagnostic pop
 		};
 
 		[[nodiscard]] CachedByte operator[](std::size_t i) const
 		{
-			ensureCached();
-			return { bytes[i], reinterpret_cast<std::byte*>(static_cast<const Base*>(this)->getAddress() + i) };
+			return { getBytes()[i], reinterpret_cast<std::byte*>(static_cast<const Base*>(this)->getAddress() + i) };
 		}
 
 		[[nodiscard]] constexpr CacheIterator cbegin() const
 		{
-			ensureCached();
 			return { this, 0 };
 		}
 		[[nodiscard]] constexpr CacheIterator cend() const
 		{
-			ensureCached();
 			return { this, static_cast<const Base*>(this)->getLength() };
 		}
 
 		[[nodiscard]] constexpr std::reverse_iterator<CacheIterator> crbegin() const
 		{
-			ensureCached();
 			return std::make_reverse_iterator(cend());
 		}
 		[[nodiscard]] constexpr std::reverse_iterator<CacheIterator> crend() const
 		{
-			ensureCached();
 			return std::make_reverse_iterator(cbegin());
 		}
 	};
@@ -264,8 +257,9 @@ namespace MemoryManager {
 		Iterable<Region>;
 	// clang-format on
 
-	template<typename Region> requires MemoryRegion<Region>
-	class MemoryLayout : public std::set<Region, RegionComparator<Region>> {
+	template <typename Region, typename Comparator = RegionComparator<Region>>
+		requires MemoryRegion<Region>
+	class MemoryLayout : public std::set<Region, Comparator> {
 	public:
 		[[nodiscard]] constexpr const Region* findRegion(std::uintptr_t address) const
 		{
@@ -283,7 +277,7 @@ namespace MemoryManager {
 	};
 
 	// MemoryManager
-	template<typename MemMgr>
+	template <typename MemMgr>
 	concept LayoutAware = AddressAware<typename MemMgr::RegionT> && requires(MemMgr manager) {
 		{ std::as_const(manager).getLayout() } -> std::same_as<const MemoryLayout<typename MemMgr::RegionT>&>;
 
@@ -291,12 +285,12 @@ namespace MemoryManager {
 		{ manager.update() };
 	};
 
-	template<typename MemMgr>
+	template <typename MemMgr>
 	concept GranularityAware = requires(const MemMgr manager) {
 		{ manager.getPageGranularity() } -> std::same_as<std::size_t>;
 	};
 
-	template<typename MemMgr>
+	template <typename MemMgr>
 	concept Allocator = requires(const MemMgr manager, std::uintptr_t address, std::size_t size, Flags protection) {
 		/**
 		 * Allocates a memory block
@@ -307,7 +301,7 @@ namespace MemoryManager {
 		{ manager.allocate(address, size, protection) } -> std::same_as<std::uintptr_t>;
 	};
 
-	template<typename MemMgr>
+	template <typename MemMgr>
 	concept Deallocator = requires(const MemMgr manager, std::uintptr_t address, std::size_t size) {
 		/**
 		 * Deallocates a memory block
@@ -316,7 +310,7 @@ namespace MemoryManager {
 		{ manager.deallocate(address, size) };
 	};
 
-	template<typename MemMgr>
+	template <typename MemMgr>
 	concept Protector = requires(const MemMgr manager, std::uintptr_t address, std::size_t size, Flags protection) {
 		/**
 		 * Changes protection of the memory page
@@ -325,7 +319,7 @@ namespace MemoryManager {
 		{ manager.protect(address, size, protection) };
 	};
 
-	template<typename MemMgr>
+	template <typename MemMgr>
 	concept Reader = requires(const MemMgr manager, std::uintptr_t address, void* content, std::size_t length) {
 		/**
 		 * Indicates if the memory manager requires permissions for reading from memory pages
@@ -335,7 +329,7 @@ namespace MemoryManager {
 		{ manager.read(address, content, length) };
 	};
 
-	template<typename MemMgr>
+	template <typename MemMgr>
 	concept Writer = requires(const MemMgr manager, std::uintptr_t address, const void* content, std::size_t length) {
 		/**
 		 * Indicates if the memory manager requires permissions for writing to memory pages
