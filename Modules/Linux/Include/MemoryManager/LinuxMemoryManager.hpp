@@ -179,7 +179,7 @@ namespace MemoryManager {
 				close();
 		}
 
-		// Since we have a file handle as one of the member variables these two operations are not possible
+		// Since one of the member variables is a file handle, these two operations are not possible
 		LinuxMemoryManager(const LinuxMemoryManager& other) = delete;
 		LinuxMemoryManager& operator=(const LinuxMemoryManager& other) = delete;
 
@@ -247,7 +247,7 @@ namespace MemoryManager {
 
 					if (name[0] == '[') {
 						special = true;
-						f.setReadable(false); // I mean they technically are, but only under a lot of conditions
+						f.setReadable(false); // They technically are, but only under a lot of conditions
 					}
 				}
 
@@ -261,7 +261,7 @@ namespace MemoryManager {
 
 		[[nodiscard]] std::size_t getPageGranularity() const
 		{
-			// The page size could, in theory, be a different one for each process, but under Linux that doesn't happen to my knowledge.
+			// The page size could, in theory, be a different one for each process, but under Linux that shouldn't happen.
 			static std::size_t pageSize = getpagesize();
 			return pageSize;
 		}

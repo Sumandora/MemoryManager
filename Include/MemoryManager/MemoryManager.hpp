@@ -278,7 +278,7 @@ namespace MemoryManager {
 
 	// MemoryManager
 	template <typename MemMgr>
-	concept LayoutAware = AddressAware<typename MemMgr::RegionT> && requires(MemMgr manager) {
+	concept LayoutAware = AddressAware<typename MemMgr::RegionT> && requires(std::remove_const_t<MemMgr> manager) {
 		{ std::as_const(manager).getLayout() } -> std::same_as<const MemoryLayout<typename MemMgr::RegionT>&>;
 
 		// Warning: Calling this will invalidate all references to MemoryRegions
