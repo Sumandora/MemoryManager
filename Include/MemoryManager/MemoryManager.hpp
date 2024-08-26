@@ -3,11 +3,16 @@
 
 #include <array>
 #include <bitset>
+#include <concepts>
+#include <cstddef>
 #include <cstdint>
 #include <cwctype>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <set>
+#include <string>
+#include <type_traits>
 #include <utility>
 
 namespace MemoryManager {

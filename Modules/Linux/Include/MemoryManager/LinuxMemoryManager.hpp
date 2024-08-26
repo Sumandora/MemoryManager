@@ -3,10 +3,21 @@
 
 #include "MemoryManager/MemoryManager.hpp"
 
+#include <array>
+#include <cerrno>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
+#include <exception>
 #include <fcntl.h>
 #include <fstream>
+#include <optional>
+#include <stdexcept>
+#include <string>
 #include <sys/mman.h>
+#include <sys/types.h>
+#include <type_traits>
 #include <unistd.h>
 #include <variant>
 
