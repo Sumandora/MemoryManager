@@ -6,10 +6,8 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
-#include <cwctype>
-#include <iterator>
-#include <memory>
 #include <optional>
+#include <ranges>
 #include <set>
 #include <string>
 #include <type_traits>
@@ -49,7 +47,7 @@ namespace MemoryManager {
 		constexpr void setWriteable(bool b) { set(1, b); }
 		constexpr void setExecutable(bool b) { set(2, b); }
 
-		[[nodiscard]] constexpr std::string asString() const
+		[[nodiscard]] constexpr std::string toString() const
 		{
 			std::string string;
 			string.reserve(3);
@@ -86,9 +84,27 @@ namespace MemoryManager {
 		{ reg.getPath() } -> std::same_as<std::optional<std::string>>;
 	};
 
+	namespace detail {
+		template <typename T>
+		concept ByteRange = std::ranges::contiguous_range<T> && sizeof(std::ranges::range_value_t<T>) == 1;
+	}
+
 	template <typename Region>
-	concept Readable = requires(const Region reg) {
-		{ reg.read() } -> std::same_as<std::byte*>;
+	concept Viewable = requires(const Region reg, bool refresh) {
+		// Writes to the view may are not reflected without explicit support from the implementation
+		
+		// Indicates if the view represents memory, that updates as it's changed.
+		// Please note that requesting a new range will invalidate all the previously requested views and should no longer be kept or read.
+		{ reg.doesUpdateView() } -> std::convertible_to<bool>;
+
+		// Taking the pointer of an element in the range is not required to yield the pointer to the element in the targeted address space.
+		// To get the pointer to an element in the target memory space, take the distance from the beginning and add it to the regions base address.
+		// Like this: `region.getAddress() + std::distance(view.begin(), it)`
+
+		// When dealing with updating views, but a non-updating view is preferred then passing true, will yield a constant copy regardlessly.
+
+		{ reg.view() } -> detail::ByteRange; // equivalent to refresh = false
+		{ reg.view(refresh) } -> detail::ByteRange;
 	};
 
 	template <typename Region>
@@ -107,139 +123,7 @@ namespace MemoryManager {
 		}
 	};
 
-	// FancyPointer for iterating over cached regions
-	struct CachedByte {
-		std::byte value;
-		std::byte* pointer;
-
-		// NOLINTNEXTLINE(google-runtime-operator)
-		constexpr std::byte* operator&() const { return pointer; }
-		// NOLINTNEXTLINE(google-explicit-constructor, hicpp-explicit-conversions)
-		constexpr operator std::byte() const { return value; }
-	};
-
-	template <typename Base>
-	class CachableMixin {
-		mutable std::unique_ptr<std::byte[]> bytes = nullptr;
-
-		constexpr std::byte* getBytes() const
-		{
-			if (!bytes)
-				bytes = std::unique_ptr<std::byte[]>{ static_cast<const Base*>(this)->read() };
-			return bytes.get();
-		}
-
-	public:
-		class CacheIterator {
-			const CachableMixin* parent;
-			std::size_t index;
-
-		public:
-			constexpr CacheIterator()
-				: parent(nullptr)
-				, index(0)
-			{
-			}
-
-			constexpr CacheIterator(const CachableMixin* parent, std::size_t index)
-				: parent(parent)
-				, index(index)
-			{
-			}
-
-			using iterator_category = std::bidirectional_iterator_tag;
-			using value_type = CachedByte;
-			using reference = CachedByte&;
-			using pointer = std::byte*;
-			using difference_type = std::ptrdiff_t;
-
-			constexpr CachedByte operator*() const
-			{
-				return (*parent)[index];
-			}
-			constexpr std::byte* operator->() const
-			{
-				return &(*parent)[index];
-			}
-
-			constexpr CacheIterator& operator++()
-			{
-				index++;
-				return *this;
-			}
-			constexpr CacheIterator operator++(int)
-			{
-				CacheIterator it = *this;
-				index++;
-				return it;
-			}
-
-			constexpr CacheIterator& operator--()
-			{
-				index--;
-				return *this;
-			}
-			constexpr CacheIterator operator--(int)
-			{
-				CacheIterator it = *this;
-				index--;
-				return it;
-			}
-
-			constexpr auto operator<=>(std::uintptr_t pointer) const
-			{
-				return static_cast<const Base*>(parent)->getAddress() + index <=> pointer;
-			}
-
-			constexpr auto operator==(std::uintptr_t pointer) const
-			{
-				return static_cast<const Base*>(parent)->getAddress() + index == pointer;
-			}
-
-			constexpr bool operator==(const CacheIterator& rhs) const
-			{
-				return index == rhs.index;
-			}
-
-			// NOLINTNEXTLINE(google-explicit-constructor, hicpp-explicit-conversions)
-			constexpr operator std::uintptr_t()
-			{
-				return static_cast<const Base*>(parent)->getAddress() + index;
-			}
-		};
-
-		[[nodiscard]] CachedByte operator[](std::size_t i) const
-		{
-			return { getBytes()[i], reinterpret_cast<std::byte*>(static_cast<const Base*>(this)->getAddress() + i) };
-		}
-
-		[[nodiscard]] constexpr CacheIterator cbegin() const
-		{
-			return { this, 0 };
-		}
-		[[nodiscard]] constexpr CacheIterator cend() const
-		{
-			return { this, static_cast<const Base*>(this)->getLength() };
-		}
-
-		[[nodiscard]] constexpr std::reverse_iterator<CacheIterator> crbegin() const
-		{
-			return std::make_reverse_iterator(cend());
-		}
-		[[nodiscard]] constexpr std::reverse_iterator<CacheIterator> crend() const
-		{
-			return std::make_reverse_iterator(cbegin());
-		}
-	};
-
 	// clang-format off
-	template<typename Region>
-	concept Iterable =
-		AddressAware<Region> &&
-		LengthAware<Region> &&
-		Readable<Region> &&
-		std::derived_from<Region, CachableMixin<Region>>;
-
 	template<typename Region>
 	concept MemoryRegion =
 		AddressAware<Region> ||
@@ -247,26 +131,14 @@ namespace MemoryManager {
 		FlagAware<Region> ||
 		NameAware<Region> ||
 		PathAware<Region> ||
-		Readable<Region> ||
-		Iterable<Region>;
-
-	// This one can be used to check if you have implemented the complete interface
-	template<typename Region>
-	concept CompleteMemoryRegion =
-		AddressAware<Region> &&
-		LengthAware<Region> &&
-		FlagAware<Region> &&
-		NameAware<Region> &&
-		PathAware<Region> &&
-		Readable<Region> &&
-		Iterable<Region>;
+		Viewable<Region>;
 	// clang-format on
 
 	template <typename Region, typename Comparator = RegionComparator<Region>>
-		requires MemoryRegion<Region>
 	class MemoryLayout : public std::set<Region, Comparator> {
 	public:
 		[[nodiscard]] constexpr const Region* findRegion(std::uintptr_t address) const
+			requires AddressAware<Region> && LengthAware<Region>
 		{
 			if (this->empty())
 				return nullptr;
@@ -274,7 +146,7 @@ namespace MemoryManager {
 			if (it == this->begin())
 				return nullptr;
 			it--;
-			auto& region = *it;
+			const auto& region = *it;
 			if (address >= region.getAddress() && address < region.getAddress() + region.getLength())
 				return &region;
 			return nullptr;
@@ -283,7 +155,7 @@ namespace MemoryManager {
 
 	// MemoryManager
 	template <typename MemMgr>
-	concept LayoutAware = AddressAware<typename MemMgr::RegionT> && requires(std::remove_const_t<MemMgr> manager) {
+	concept LayoutAware = requires(std::remove_const_t<MemMgr> manager) {
 		{ std::as_const(manager).getLayout() } -> std::same_as<const MemoryLayout<typename MemMgr::RegionT>&>;
 
 		// Warning: Calling this will invalidate all references to MemoryRegions
@@ -298,8 +170,8 @@ namespace MemoryManager {
 	template <typename MemMgr>
 	concept Allocator = requires(const MemMgr manager, std::uintptr_t address, std::size_t size, Flags protection) {
 		/**
-		 * Allocates a memory block
-		 * @param address if not 0: indicates the location of the new memory, in that case address must be aligned to page granularity
+		 * Allocates a memory region
+		 * @param address if != 0 indicates the location of the new memory, in this case address must be aligned to page granularity
 		 * @param size may get rounded up to pagesize
 		 * @returns pointer to the new memory
 		 */
@@ -309,7 +181,7 @@ namespace MemoryManager {
 	template <typename MemMgr>
 	concept Deallocator = requires(const MemMgr manager, std::uintptr_t address, std::size_t size) {
 		/**
-		 * Deallocates a memory block
+		 * Deallocates a memory region
 		 * @param address must be aligned to page granularity
 		 */
 		{ manager.deallocate(address, size) };
@@ -318,7 +190,7 @@ namespace MemoryManager {
 	template <typename MemMgr>
 	concept Protector = requires(const MemMgr manager, std::uintptr_t address, std::size_t size, Flags protection) {
 		/**
-		 * Changes protection of the memory page
+		 * Changes protection of a memory region
 		 * @param address must be aligned to page granularity
 		 */
 		{ manager.protect(address, size, protection) };
@@ -354,17 +226,6 @@ namespace MemoryManager {
 	    Protector<MemMgr> ||
 	    Reader<MemMgr> ||
 	    Writer<MemMgr>;
-
-	// This one can be used to check if you have implemented the complete interface
-	template<typename MemMgr>
-	concept CompleteMemoryManager =
-		LayoutAware<MemMgr> &&
-		GranularityAware<MemMgr> &&
-		Allocator<MemMgr> &&
-		Deallocator<MemMgr> &&
-		Protector<MemMgr> &&
-		Reader<MemMgr> &&
-		Writer<MemMgr>;
 	// clang-format on
 }
 

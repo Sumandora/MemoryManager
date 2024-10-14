@@ -12,7 +12,9 @@
 #include <exception>
 #include <fcntl.h>
 #include <fstream>
+#include <memory>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <sys/mman.h>
@@ -25,9 +27,9 @@ namespace MemoryManager {
 	template <bool Read, bool Write, bool Local>
 	class LinuxMemoryManager;
 
-	template <typename MemMgr, bool CanRead>
-	class LinuxRegion : public std::conditional_t<CanRead, CachableMixin<LinuxRegion<MemMgr, CanRead>>, std::monostate> {
-		MemMgr* parent;
+	template <typename MemMgr, bool Local>
+	class LinuxRegion {
+		const MemMgr* parent;
 		std::uintptr_t address;
 		std::size_t length;
 		Flags flags;
@@ -42,10 +44,11 @@ namespace MemoryManager {
 
 	private:
 		std::optional<NamedData> namedData;
+		mutable std::unique_ptr<std::byte[]> cachedMemory;
 
 	public:
 		constexpr LinuxRegion(
-			MemMgr* parent,
+			const MemMgr* parent,
 			std::uintptr_t address,
 			std::size_t length,
 			Flags flags,
@@ -75,19 +78,19 @@ namespace MemoryManager {
 
 		[[nodiscard]] std::optional<std::string> getPath() const
 		{
-			if (namedData->special)
-				return std::nullopt;
-			return namedData.and_then([](const NamedData& d) -> std::optional<std::string> {
-				if (!d.name.starts_with('/'))
+			return namedData.and_then([](const NamedData& namedData) -> std::optional<std::string> {
+				if (namedData.special)
 					return std::nullopt;
-				return d.name;
+				if (!namedData.name.starts_with('/'))
+					return std::nullopt;
+				return namedData.name;
 			});
 		}
 
 		[[nodiscard]] std::optional<std::string> getName() const
 		{
 			return namedData.transform([](const NamedData& d) {
-				auto pos = d.name.rfind('/');
+				const auto pos = d.name.rfind('/');
 				return pos == std::string::npos || pos == d.name.size() ? d.name : d.name.substr(pos + 1);
 			});
 		}
@@ -102,12 +105,27 @@ namespace MemoryManager {
 			return namedData.has_value() && namedData->special;
 		}
 
-		[[nodiscard]] std::byte* read() const
-			requires CanRead
+		[[nodiscard]] bool doesUpdateView() const
+			requires Reader<MemMgr>
 		{
-			auto* data = new std::byte[getLength()];
-			parent->read(getAddress(), data, getLength());
-			return data;
+			if constexpr (Local)
+				return flags.isReadable();
+			return false;
+		}
+
+		[[nodiscard]] std::span<std::byte> view(bool updateCache = false) const
+			requires Reader<MemMgr>
+		{
+			if constexpr (Local)
+				if (doesUpdateView() && !updateCache)
+					return std::span{ reinterpret_cast<std::byte*>(getAddress()), getLength() };
+
+			if (!cachedMemory || updateCache) {
+				cachedMemory.reset(new std::byte[getLength()]);
+				parent->read(getAddress(), cachedMemory.get(), getLength());
+			}
+
+			return std::span{ cachedMemory.get(), getLength() };
 		}
 	};
 
@@ -121,14 +139,14 @@ namespace MemoryManager {
 		static constexpr bool RequiresPermissionsForReading = Local && !Read;
 		static constexpr bool RequiresPermissionsForWriting = Local && !Write;
 
-		using RegionT = LinuxRegion<Self, CanRead>;
+		using RegionT = LinuxRegion<Self, Local>;
 
 	private:
 		std::string pid;
 
 		MemoryLayout<RegionT> layout;
 
-		using FileHandle = int;
+		using FileHandle = std::invoke_result_t<decltype([](const char* a1, int a2) { return ::open(a1, a2); }), const char*, int>;
 
 		[[no_unique_address]] std::conditional_t<Read || Write, FileHandle, std::monostate> memInterface;
 
@@ -147,9 +165,9 @@ namespace MemoryManager {
 				else if constexpr (Write)
 					flag = O_WRONLY;
 
-				FileHandle h = open(("/proc/" + pid + "/mem").c_str(), flag);
+				const FileHandle h = ::open(("/proc/" + pid + "/mem").c_str(), flag);
 				if (h == INVALID_FILE_HANDLE)
-					throw std::runtime_error(strerror(errno));
+					throw std::runtime_error(::strerror(errno));
 				return h;
 			}
 		}
@@ -230,14 +248,15 @@ namespace MemoryManager {
 				if (line.empty())
 					continue; // ?
 
-				std::uintptr_t begin = 0, end = 0;
+				std::uintptr_t begin = 0;
+				std::uintptr_t end = 0;
 				std::array<char, 3> perms{};
 				std::string name;
 
-				int offset = 0;
+				int offset = -1;
+
 				// NOLINTNEXTLINE(cert-err34-c)
-				(void)sscanf(line.c_str(), "%zx-%zx %c%c%c%*c %*x %*x:%*x %*x%n",
-					&begin, &end, &perms[0], &perms[1], &perms[2], &offset);
+				(void)sscanf(line.c_str(), "%zx-%zx %c%c%c%*c %*x %*x:%*x %*x%n", &begin, &end, &perms[0], &perms[1], &perms[2], &offset);
 
 				while (offset < line.length() && line[offset] == ' ')
 					offset++;
@@ -273,7 +292,7 @@ namespace MemoryManager {
 		[[nodiscard]] std::size_t getPageGranularity() const
 		{
 			// The page size could, in theory, be a different one for each process, but under Linux that shouldn't happen.
-			static std::size_t pageSize = getpagesize();
+			static const std::size_t pageSize = getpagesize();
 			return pageSize;
 		}
 
@@ -281,9 +300,10 @@ namespace MemoryManager {
 			requires Local
 		{
 			int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-			if (address > 0)
+			if (address > 0) {
 				flags |= MAP_FIXED_NOREPLACE;
-			void* res = mmap(reinterpret_cast<void*>(address), size, flagsToPosix(protection), flags, -1, 0);
+			}
+			const void* res = mmap(reinterpret_cast<void*>(address), size, flagsToPosix(protection), flags, -1, 0);
 			if (res == MAP_FAILED)
 				throw std::runtime_error(strerror(errno));
 			return reinterpret_cast<uintptr_t>(res);
@@ -291,7 +311,7 @@ namespace MemoryManager {
 		void deallocate(std::uintptr_t address, std::size_t size) const
 			requires Local
 		{
-			int res = munmap(reinterpret_cast<void*>(address), size);
+			const auto res = munmap(reinterpret_cast<void*>(address), size);
 
 			if (res == -1)
 				throw std::runtime_error(strerror(errno));
@@ -299,7 +319,7 @@ namespace MemoryManager {
 		void protect(std::uintptr_t address, std::size_t size, Flags protection) const
 			requires Local
 		{
-			int res = mprotect(reinterpret_cast<void*>(address), size, flagsToPosix(protection));
+			const auto res = mprotect(reinterpret_cast<void*>(address), size, flagsToPosix(protection));
 
 			if (res == -1)
 				throw std::runtime_error(strerror(errno));
@@ -314,9 +334,9 @@ namespace MemoryManager {
 			}
 
 #ifdef __GLIBC__
-			auto res = pread64(memInterface, content, length, static_cast<off64_t>(address));
+			const auto res = pread64(memInterface, content, length, static_cast<off64_t>(address));
 #else
-			auto res = pread(memInterface, content, length, static_cast<off_t>(address));
+			const auto res = pread(memInterface, content, length, static_cast<off_t>(address));
 #endif
 			if (res == -1)
 				throw std::runtime_error(strerror(errno));
@@ -331,45 +351,15 @@ namespace MemoryManager {
 			}
 
 #ifdef __GLIBC__
-			auto res = pwrite64(memInterface, content, length, static_cast<off64_t>(address));
+			const auto res = pwrite64(memInterface, content, length, static_cast<off64_t>(address));
 #else
-			auto res = pwrite(memInterface, content, length, static_cast<off_t>(address));
+			const auto res = pwrite(memInterface, content, length, static_cast<off_t>(address));
 #endif
 			if (res == -1)
 				throw std::runtime_error(strerror(errno));
 		}
 	};
 
-	static_assert(CompleteMemoryRegion<LinuxMemoryManager<true, true, true>::RegionT>);
-	static_assert(CompleteMemoryRegion<LinuxMemoryManager<true, true, false>::RegionT>);
-
-	static_assert(CompleteMemoryRegion<LinuxMemoryManager<true, false, true>::RegionT>);
-	static_assert(CompleteMemoryRegion<LinuxMemoryManager<true, false, false>::RegionT>);
-
-	static_assert(CompleteMemoryRegion<LinuxMemoryManager<false, false, true>::RegionT>);
-	static_assert(!CompleteMemoryRegion<LinuxMemoryManager<false, false, false>::RegionT>);
-
-	static_assert(CompleteMemoryRegion<LinuxMemoryManager<true, false, true>::RegionT>);
-	static_assert(CompleteMemoryRegion<LinuxMemoryManager<true, false, false>::RegionT>);
-
-	static_assert(CompleteMemoryManager<LinuxMemoryManager<true, true, true>>);
-	static_assert(CompleteMemoryManager<LinuxMemoryManager<true, false, true>>);
-	static_assert(CompleteMemoryManager<LinuxMemoryManager<false, false, true>>);
-
-	// It's possible to satisfy those in the future, but that requires ptracing
-	static_assert(!CompleteMemoryManager<LinuxMemoryManager<true, true, false>>);
-	static_assert(!CompleteMemoryManager<LinuxMemoryManager<true, false, false>>);
-	static_assert(!CompleteMemoryManager<LinuxMemoryManager<false, false, false>>);
-
-	// For now those will be enough:
-	static_assert(Reader<LinuxMemoryManager<true, true, false>>);
-	static_assert(Writer<LinuxMemoryManager<true, true, false>>);
-
-	static_assert(Reader<LinuxMemoryManager<true, false, false>>);
-	static_assert(!Writer<LinuxMemoryManager<true, false, false>>);
-
-	static_assert(!Reader<LinuxMemoryManager<false, false, false>>);
-	static_assert(!Writer<LinuxMemoryManager<false, false, false>>);
 }
 
 #endif

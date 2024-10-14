@@ -22,7 +22,7 @@ For managing local process memory:
 #include "MemoryManager/LinuxMemoryManager.hpp" 
 
 // Create manager
-MemoryManager::LinuxMemoryManager<false /*Force Read*/, true /*Force Write*/, true /*LOCAL*/> memoryManager;
+MemoryManager::LinuxMemoryManager<false /*Force Read*/, true /*Force Write*/, true /*Local*/> memoryManager;
 
 // Allocate a memory page
 void* ptr = memoryManager.allocate(nullptr, ..., PROT_NONE);
@@ -60,4 +60,4 @@ memoryManager.write(ptr, &value, sizeof(int));
 ## Implementation
 
 The memory manager detects memory regions by parsing `/proc/[pid]/maps`. It maintains an internal layout of the memory regions.  
-Reads and writes to protected memory are done through `/proc/[pid]/mem`, which works because of [magic](https://offlinemark.com/2021/05/12/an-obscure-quirk-of-proc/).
+Force reads and force writes to protected memory are done through `/proc/[pid]/mem`, which works because of [magic](https://offlinemark.com/2021/05/12/an-obscure-quirk-of-proc/).
