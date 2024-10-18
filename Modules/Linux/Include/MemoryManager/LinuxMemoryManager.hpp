@@ -1,5 +1,5 @@
-#ifndef MEMORYMANAGER_EXTERNALMEMORYMANAGER_HPP
-#define MEMORYMANAGER_EXTERNALMEMORYMANAGER_HPP
+#ifndef MEMORYMANAGER_LINUXMEMORYMANAGER_HPP
+#define MEMORYMANAGER_LINUXMEMORYMANAGER_HPP
 
 #include "MemoryManager/MemoryManager.hpp"
 
@@ -21,11 +21,19 @@
 #include <sys/types.h>
 #include <type_traits>
 #include <unistd.h>
+#include <utility>
 #include <variant>
 
 namespace MemoryManager {
 	template <bool Read, bool Write, bool Local>
 	class LinuxMemoryManager;
+
+	struct LinuxNamedData {
+		std::string name; // may be a path
+
+		bool deleted = false;
+		bool special = false;
+	};
 
 	template <typename MemMgr, bool Local>
 	class LinuxRegion {
@@ -33,17 +41,7 @@ namespace MemoryManager {
 		std::uintptr_t address;
 		std::size_t length;
 		Flags flags;
-
-	public:
-		struct NamedData {
-			std::string name; // may be a path
-
-			bool deleted = false;
-			bool special = false;
-		};
-
-	private:
-		std::optional<NamedData> namedData;
+		std::optional<LinuxNamedData> namedData;
 		mutable std::unique_ptr<std::byte[]> cachedMemory;
 
 	public:
@@ -52,7 +50,7 @@ namespace MemoryManager {
 			std::uintptr_t address,
 			std::size_t length,
 			Flags flags,
-			std::optional<NamedData> namedData)
+			std::optional<LinuxNamedData> namedData)
 			: parent(parent)
 			, address(address)
 			, length(length)
@@ -78,7 +76,7 @@ namespace MemoryManager {
 
 		[[nodiscard]] std::optional<std::string> getPath() const
 		{
-			return namedData.and_then([](const NamedData& namedData) -> std::optional<std::string> {
+			return namedData.and_then([](const LinuxNamedData& namedData) -> std::optional<std::string> {
 				if (namedData.special)
 					return std::nullopt;
 				if (!namedData.name.starts_with('/'))
@@ -89,7 +87,7 @@ namespace MemoryManager {
 
 		[[nodiscard]] std::optional<std::string> getName() const
 		{
-			return namedData.transform([](const NamedData& d) {
+			return namedData.transform([](const LinuxNamedData& d) {
 				const auto pos = d.name.rfind('/');
 				return pos == std::string::npos || pos == d.name.size() ? d.name : d.name.substr(pos + 1);
 			});
@@ -113,7 +111,7 @@ namespace MemoryManager {
 			return false;
 		}
 
-		[[nodiscard]] std::span<std::byte> view(bool updateCache = false) const
+		[[nodiscard]] std::span<const std::byte> view(bool updateCache = false) const
 			requires Reader<MemMgr>
 		{
 			if constexpr (Local)
@@ -197,11 +195,13 @@ namespace MemoryManager {
 			: LinuxMemoryManager(std::to_string(pid))
 		{
 		}
+
 		explicit LinuxMemoryManager(const std::string& pid)
 			: pid(pid)
 			, memInterface(openFileHandle(pid))
 		{
 		}
+
 		~LinuxMemoryManager()
 		{
 			if constexpr (Read || Write)
@@ -263,7 +263,7 @@ namespace MemoryManager {
 				if (offset < line.length())
 					name = line.c_str() + offset;
 
-				Flags f{ perms };
+				Flags flags{ perms };
 
 				bool deleted = false;
 				bool special = false;
@@ -277,11 +277,11 @@ namespace MemoryManager {
 
 					if (name[0] == '[') {
 						special = true;
-						f.setReadable(false); // They technically are, but only under a lot of conditions
+						flags.setReadable(false); // They technically are, but only under a lot of conditions
 					}
 				}
 
-				newLayout.emplace(this, begin, end - begin, f, name.empty() ? std::nullopt : std::optional{ typename RegionT::NamedData{ name, deleted, special } });
+				newLayout.emplace(this, begin, end - begin, flags, name.empty() ? std::nullopt : std::optional{ LinuxNamedData{ name, deleted, special } });
 			}
 
 			fileStream.close();

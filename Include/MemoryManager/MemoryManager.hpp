@@ -9,6 +9,7 @@
 #include <optional>
 #include <ranges>
 #include <set>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -84,17 +85,9 @@ namespace MemoryManager {
 		{ reg.getPath() } -> std::same_as<std::optional<std::string>>;
 	};
 
-	namespace detail {
-		template <typename T>
-		concept ByteRange = std::ranges::contiguous_range<T> && sizeof(std::ranges::range_value_t<T>) == 1;
-	}
-
 	template <typename Region>
 	concept Viewable = requires(const Region reg, bool refresh) {
-		// Writes to the view may are not reflected without explicit support from the implementation
-		
 		// Indicates if the view represents memory, that updates as it's changed.
-		// Please note that requesting a new range will invalidate all the previously requested views and should no longer be kept or read.
 		{ reg.doesUpdateView() } -> std::convertible_to<bool>;
 
 		// Taking the pointer of an element in the range is not required to yield the pointer to the element in the targeted address space.
@@ -102,9 +95,9 @@ namespace MemoryManager {
 		// Like this: `region.getAddress() + std::distance(view.begin(), it)`
 
 		// When dealing with updating views, but a non-updating view is preferred then passing true, will yield a constant copy regardlessly.
-
-		{ reg.view() } -> detail::ByteRange; // equivalent to refresh = false
-		{ reg.view(refresh) } -> detail::ByteRange;
+		// If refresh = true is passed, please note that all previously requested constant views will be invalidated and should no longer be kept or read.
+		{ reg.view() } -> std::same_as<std::span<const std::byte>>; // equivalent to refresh = false
+		{ reg.view(refresh) } -> std::same_as<std::span<const std::byte>>;
 	};
 
 	template <typename Region>
