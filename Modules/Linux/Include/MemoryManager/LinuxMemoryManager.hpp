@@ -35,7 +35,7 @@ namespace MemoryManager {
 		bool special = false;
 	};
 
-	template <typename MemMgr, bool Local>
+	template <typename MemMgr, bool CanRead, bool Local>
 	class LinuxRegion {
 		const MemMgr* parent;
 		std::uintptr_t address;
@@ -104,7 +104,7 @@ namespace MemoryManager {
 		}
 
 		[[nodiscard]] bool doesUpdateView() const
-			requires Reader<MemMgr>
+			requires CanRead
 		{
 			if constexpr (Local)
 				return flags.isReadable();
@@ -112,7 +112,7 @@ namespace MemoryManager {
 		}
 
 		[[nodiscard]] std::span<const std::byte> view(bool updateCache = false) const
-			requires Reader<MemMgr>
+			requires CanRead
 		{
 			if constexpr (Local)
 				if (doesUpdateView() && !updateCache)
@@ -137,7 +137,7 @@ namespace MemoryManager {
 		static constexpr bool RequiresPermissionsForReading = Local && !Read;
 		static constexpr bool RequiresPermissionsForWriting = Local && !Write;
 
-		using RegionT = LinuxRegion<Self, Local>;
+		using RegionT = LinuxRegion<Self, CanRead, Local>;
 
 	private:
 		std::string pid;
@@ -326,7 +326,7 @@ namespace MemoryManager {
 		}
 
 		void read(std::uintptr_t address, void* content, std::size_t length) const
-			requires Read || Local
+			requires CanRead
 		{
 			if constexpr (Local && !Read) {
 				std::memcpy(content, reinterpret_cast<void*>(address), length);
@@ -343,7 +343,7 @@ namespace MemoryManager {
 		}
 
 		void write(std::uintptr_t address, const void* content, std::size_t length) const
-			requires Write || Local
+			requires CanWrite
 		{
 			if constexpr (Local && !Write) {
 				std::memcpy(reinterpret_cast<void*>(address), content, length);
@@ -358,7 +358,56 @@ namespace MemoryManager {
 			if (res == -1)
 				throw std::runtime_error(strerror(errno));
 		}
+
+		static_assert(AddressAware<RegionT>);
+		static_assert(LengthAware<RegionT>);
+		static_assert(FlagAware<RegionT>);
+		static_assert(NameAware<RegionT>);
+		static_assert(PathAware<RegionT>);
+		static_assert(!CanRead || Viewable<RegionT>);
 	};
+
+	static_assert(LayoutAware<LinuxMemoryManager<true, true, true>>);
+	static_assert(LayoutAware<LinuxMemoryManager<true, false, true>>);
+	static_assert(LayoutAware<LinuxMemoryManager<false, true, true>>);
+
+	static_assert(LayoutAware<LinuxMemoryManager<true, true, false>>);
+	static_assert(LayoutAware<LinuxMemoryManager<true, false, false>>);
+	static_assert(LayoutAware<LinuxMemoryManager<false, true, false>>);
+
+	static_assert(GranularityAware<LinuxMemoryManager<true, true, true>>);
+	static_assert(GranularityAware<LinuxMemoryManager<true, false, true>>);
+	static_assert(GranularityAware<LinuxMemoryManager<false, true, true>>);
+
+	static_assert(GranularityAware<LinuxMemoryManager<true, true, false>>);
+	static_assert(GranularityAware<LinuxMemoryManager<true, false, false>>);
+	static_assert(GranularityAware<LinuxMemoryManager<false, true, false>>);
+
+	static_assert(Allocator<LinuxMemoryManager<true, true, true>>);
+	static_assert(Allocator<LinuxMemoryManager<true, false, true>>);
+	static_assert(Allocator<LinuxMemoryManager<false, true, true>>);
+
+	static_assert(Deallocator<LinuxMemoryManager<true, true, true>>);
+	static_assert(Deallocator<LinuxMemoryManager<true, false, true>>);
+	static_assert(Deallocator<LinuxMemoryManager<false, true, true>>);
+
+	static_assert(Protector<LinuxMemoryManager<true, true, true>>);
+	static_assert(Protector<LinuxMemoryManager<true, false, true>>);
+	static_assert(Protector<LinuxMemoryManager<false, true, true>>);
+
+	static_assert(Reader<LinuxMemoryManager<true, true, true>>);
+	static_assert(Reader<LinuxMemoryManager<true, false, true>>);
+	static_assert(Reader<LinuxMemoryManager<false, true, true>>);
+
+	static_assert(Reader<LinuxMemoryManager<true, true, false>>);
+	static_assert(Reader<LinuxMemoryManager<true, false, false>>);
+
+	static_assert(Writer<LinuxMemoryManager<true, true, true>>);
+	static_assert(Writer<LinuxMemoryManager<true, false, true>>);
+	static_assert(Writer<LinuxMemoryManager<false, true, true>>);
+
+	static_assert(Writer<LinuxMemoryManager<true, true, false>>);
+	static_assert(Writer<LinuxMemoryManager<false, true, false>>);
 
 }
 
