@@ -7,7 +7,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <ranges>
 #include <set>
 #include <span>
 #include <string>
