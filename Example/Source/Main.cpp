@@ -35,7 +35,7 @@ int main()
 	auto span = region->view();
 
 	std::uint64_t s = 0;
-	for (std::byte b : span)
+	for (const std::byte b : span)
 		s += static_cast<uint8_t>(b);
 	assert(s == 0);
 
@@ -51,11 +51,11 @@ int main()
 
 	span = region->view(true);
 	s = 0;
-	for (std::byte b : span)
+	for (const std::byte b : span)
 		s += static_cast<uint8_t>(b);
 	assert(s == 123);
 
-	memoryManager.deallocate(reinterpret_cast<std::uintptr_t>(myInteger), sizeof(int));
+	memoryManager.deallocate(myInteger, sizeof(int));
 
 	return 0;
 }

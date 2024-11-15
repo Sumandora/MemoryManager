@@ -281,7 +281,8 @@ namespace MemoryManager {
 					}
 				}
 
-				newLayout.emplace(this, begin, end - begin, flags, name.empty() ? std::nullopt : std::optional{ LinuxNamedData{ name, deleted, special } });
+				newLayout.emplace(this, begin, end - begin, flags,
+					name.empty() ? std::nullopt : std::optional{ LinuxNamedData{ .name = name, .deleted = deleted, .special = special } });
 			}
 
 			fileStream.close();
