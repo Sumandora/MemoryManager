@@ -231,6 +231,10 @@ namespace MemoryManager {
 			memInterface = openFileHandle(pid);
 		}
 
+		[[nodiscard]] bool isClosed() const {
+			return memInterface == INVALID_FILE_HANDLE;
+		}
+
 		[[nodiscard]] const MemoryLayout<RegionT>& getLayout() const
 		{
 			return layout;
