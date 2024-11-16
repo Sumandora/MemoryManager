@@ -134,6 +134,7 @@ namespace MemoryManager {
 	public:
 		static constexpr bool CanRead = Local || Read;
 		static constexpr bool CanWrite = Local || Write;
+		static constexpr bool StoresFileHandle = Read || Write;
 		static constexpr bool RequiresPermissionsForReading = Local && !Read;
 		static constexpr bool RequiresPermissionsForWriting = Local && !Write;
 
@@ -146,7 +147,7 @@ namespace MemoryManager {
 
 		using FileHandle = std::invoke_result_t<decltype([](const char* a1, int a2) { return ::open(a1, a2); }), const char*, int>;
 
-		[[no_unique_address]] std::conditional_t<Read || Write, FileHandle, std::monostate> memInterface;
+		[[no_unique_address]] std::conditional_t<StoresFileHandle, FileHandle, std::monostate> memInterface;
 
 		static constexpr int INVALID_FILE_HANDLE = -1;
 
@@ -204,7 +205,7 @@ namespace MemoryManager {
 
 		~LinuxMemoryManager()
 		{
-			if constexpr (Read || Write)
+			if constexpr (StoresFileHandle)
 				close();
 		}
 
@@ -213,7 +214,7 @@ namespace MemoryManager {
 		LinuxMemoryManager& operator=(const LinuxMemoryManager& other) = delete;
 
 		void close()
-			requires Read || Write
+			requires StoresFileHandle
 		{
 			if (memInterface == INVALID_FILE_HANDLE)
 				return;
@@ -223,7 +224,7 @@ namespace MemoryManager {
 		}
 
 		void reopen()
-			requires Read || Write
+			requires StoresFileHandle
 		{
 			if (memInterface != INVALID_FILE_HANDLE)
 				return;
@@ -231,7 +232,9 @@ namespace MemoryManager {
 			memInterface = openFileHandle(pid);
 		}
 
-		[[nodiscard]] bool isClosed() const {
+		[[nodiscard]] bool isClosed() const
+			requires StoresFileHandle
+		{
 			return memInterface == INVALID_FILE_HANDLE;
 		}
 
