@@ -333,6 +333,15 @@ namespace MemoryManager {
 				throw std::runtime_error(strerror(errno));
 		}
 
+	private:
+		void ensureOpen() const
+		{
+			if constexpr (StoresFileHandle)
+				if (isClosed())
+					throw std::logic_error{ std::to_string(memInterface) };
+		}
+
+	public:
 		void read(std::uintptr_t address, void* content, std::size_t length) const
 			requires CanRead
 		{
@@ -340,6 +349,8 @@ namespace MemoryManager {
 				std::memcpy(content, reinterpret_cast<void*>(address), length);
 				return;
 			}
+
+			ensureOpen();
 
 #ifdef __GLIBC__
 			const auto res = pread64(memInterface, content, length, static_cast<off64_t>(address));
@@ -357,6 +368,8 @@ namespace MemoryManager {
 				std::memcpy(reinterpret_cast<void*>(address), content, length);
 				return;
 			}
+
+			ensureOpen();
 
 #ifdef __GLIBC__
 			const auto res = pwrite64(memInterface, content, length, static_cast<off64_t>(address));
