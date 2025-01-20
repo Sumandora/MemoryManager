@@ -9,7 +9,7 @@ int main()
 {
 	MemoryManager::LinuxMemoryManager<true, true, true> memoryManager;
 
-	std::uintptr_t myInteger = memoryManager.allocate(0, sizeof(int), "---" /*No permissions*/);
+	std::uintptr_t myInteger = memoryManager.allocate(sizeof(int), "---" /*No permissions*/);
 	memoryManager.update();
 
 	for (const auto& reg : memoryManager.getLayout()) {

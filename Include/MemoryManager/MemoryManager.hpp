@@ -160,14 +160,24 @@ namespace MemoryManager {
 	};
 
 	template <typename MemMgr>
-	concept Allocator = requires(const MemMgr manager, std::uintptr_t address, std::size_t size, Flags protection) {
+	concept PositionedAllocator = requires(const MemMgr manager, std::uintptr_t address, std::size_t size, Flags protection) {
+		/**
+		 * Allocates a memory region at an address
+		 * @param address indicates the location of the new memory; the address must be aligned to page granularity
+		 * @param size may get rounded up to pagesize
+		 * @returns pointer to the new memory or nothing if the address already has an mapping associated with it
+		 */
+		{ manager.allocateAt(address, size, protection) } -> std::same_as<std::optional<std::uintptr_t>>;
+	};
+
+	template <typename MemMgr>
+	concept Allocator = requires(const MemMgr manager, std::size_t size, Flags protection) {
 		/**
 		 * Allocates a memory region
-		 * @param address if != 0 indicates the location of the new memory, in this case address must be aligned to page granularity
 		 * @param size may get rounded up to pagesize
 		 * @returns pointer to the new memory
 		 */
-		{ manager.allocate(address, size, protection) } -> std::same_as<std::uintptr_t>;
+		{ manager.allocate(size, protection) } -> std::same_as<std::uintptr_t>;
 	};
 
 	template <typename MemMgr>
@@ -213,6 +223,7 @@ namespace MemoryManager {
 	concept MemoryManager =
 		LayoutAware<MemMgr> ||
 	    GranularityAware<MemMgr> ||
+	    PositionedAllocator<MemMgr> ||
 	    Allocator<MemMgr> ||
 	    Deallocator<MemMgr> ||
 	    Protector<MemMgr> ||
