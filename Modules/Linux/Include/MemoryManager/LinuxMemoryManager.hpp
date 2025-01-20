@@ -289,7 +289,7 @@ namespace MemoryManager {
 				}
 
 				newLayout.emplace(this, begin, end - begin, flags,
-					name.empty() ? std::nullopt : std::optional{ LinuxNamedData{ .name = name, .deleted = deleted, .special = special } });
+					name.empty() ? std::nullopt : std::make_optional(LinuxNamedData{ .name = name, .deleted = deleted, .special = special }));
 			}
 
 			fileStream.close();
