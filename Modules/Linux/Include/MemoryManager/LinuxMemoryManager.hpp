@@ -304,16 +304,27 @@ namespace MemoryManager {
 			return pageSize;
 		}
 
-		[[nodiscard]] std::uintptr_t allocate(std::uintptr_t address, std::size_t size, Flags protection) const
+		[[nodiscard]] std::uintptr_t allocate(std::size_t size, Flags protection) const
 			requires Local
 		{
-			int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-			if (address > 0) {
-				flags |= MAP_FIXED_NOREPLACE;
-			}
-			const void* res = mmap(reinterpret_cast<void*>(address), size, flagsToPosix(protection), flags, -1, 0);
+			const void* res = mmap(nullptr, size, flagsToPosix(protection), MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 			if (res == MAP_FAILED)
 				throw std::runtime_error(strerror(errno));
+			return reinterpret_cast<uintptr_t>(res);
+		}
+		[[nodiscard]] std::optional<std::uintptr_t> allocateAt(std::uintptr_t address, std::size_t size, Flags protection) const
+			requires Local
+		{
+			const void* res = mmap(reinterpret_cast<void*>(address), size, flagsToPosix(protection), MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+			if (res == MAP_FAILED) {
+				const int err = errno;
+
+				if (err == EEXIST) {
+					return std::nullopt;
+				}
+
+				throw std::runtime_error(strerror(err));
+			}
 			return reinterpret_cast<uintptr_t>(res);
 		}
 		void deallocate(std::uintptr_t address, std::size_t size) const
@@ -407,6 +418,10 @@ namespace MemoryManager {
 	static_assert(Allocator<LinuxMemoryManager<true, true, true>>);
 	static_assert(Allocator<LinuxMemoryManager<true, false, true>>);
 	static_assert(Allocator<LinuxMemoryManager<false, true, true>>);
+
+	static_assert(PositionedAllocator<LinuxMemoryManager<true, true, true>>);
+	static_assert(PositionedAllocator<LinuxMemoryManager<true, false, true>>);
+	static_assert(PositionedAllocator<LinuxMemoryManager<false, true, true>>);
 
 	static_assert(Deallocator<LinuxMemoryManager<true, true, true>>);
 	static_assert(Deallocator<LinuxMemoryManager<true, false, true>>);
