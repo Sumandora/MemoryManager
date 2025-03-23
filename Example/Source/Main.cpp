@@ -15,10 +15,11 @@ int main()
 	for (const auto& reg : memoryManager.getLayout()) {
 		auto name = reg.getName().value_or("unnamed");
 		auto path = reg.getPath().value_or("pathless");
-		std::println("{:x}-{:x} {:s} {:s} ({:s})",
+		std::println("{:x}-{:x} {} {} {} ({})",
 			reg.getAddress(),
 			reg.getAddress() + reg.getLength(),
 			reg.getFlags().toString(),
+			reg.isShared() ? "shared" : "private",
 			path,
 			name);
 	}
