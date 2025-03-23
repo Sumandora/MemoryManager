@@ -35,12 +35,19 @@ namespace MemoryManager {
 		bool special = false;
 	};
 
+	enum class LinuxSharedState : std::uint8_t {
+		SHARED,
+		MAY_SHARE,
+		PRIVATE,
+	};
+
 	template <typename MemMgr, bool CanRead, bool Local>
 	class LinuxRegion {
 		const MemMgr* parent;
 		std::uintptr_t address;
 		std::size_t length;
 		Flags flags;
+		LinuxSharedState sharedState;
 		std::optional<LinuxNamedData> namedData;
 		mutable std::unique_ptr<std::byte[]> cachedMemory;
 
@@ -50,11 +57,13 @@ namespace MemoryManager {
 			std::uintptr_t address,
 			std::size_t length,
 			Flags flags,
+			LinuxSharedState sharedState,
 			std::optional<LinuxNamedData> namedData)
 			: parent(parent)
 			, address(address)
 			, length(length)
 			, flags(flags)
+			, sharedState(sharedState)
 			, namedData(std::move(namedData))
 		{
 		}
@@ -72,6 +81,16 @@ namespace MemoryManager {
 		[[nodiscard]] Flags getFlags() const
 		{
 			return flags;
+		}
+
+		[[nodiscard]] LinuxSharedState getSharedState() const
+		{
+			return sharedState;
+		}
+
+		[[nodiscard]] bool isShared() const
+		{
+			return sharedState != LinuxSharedState::PRIVATE;
 		}
 
 		[[nodiscard]] std::optional<std::string> getPath() const
@@ -258,12 +277,14 @@ namespace MemoryManager {
 				std::uintptr_t begin = 0;
 				std::uintptr_t end = 0;
 				std::array<char, 3> perms{};
+				char shared = 0;
 				std::string name;
 
 				int offset = -1;
 
 				// NOLINTNEXTLINE(cert-err34-c)
-				(void)sscanf(line.c_str(), "%zx-%zx %c%c%c%*c %*x %*x:%*x %*x%n", &begin, &end, &perms[0], &perms[1], &perms[2], &offset);
+				(void)sscanf(line.c_str(), "%zx-%zx %c%c%c%c %*x %*x:%*x %*x%n",
+					&begin, &end, &perms[0], &perms[1], &perms[2], &shared, &offset);
 
 				while (offset < line.length() && line[offset] == ' ')
 					offset++;
@@ -288,7 +309,22 @@ namespace MemoryManager {
 					}
 				}
 
-				newLayout.emplace(this, begin, end - begin, flags,
+				LinuxSharedState sharedState{};
+				switch (shared) {
+				case 'S':
+					sharedState = LinuxSharedState::SHARED;
+					break;
+				case 's':
+					sharedState = LinuxSharedState::MAY_SHARE;
+					break;
+				case 'p':
+					sharedState = LinuxSharedState::PRIVATE;
+					break;
+				default:
+					std::unreachable();
+				}
+
+				newLayout.emplace(this, begin, end - begin, flags, sharedState,
 					name.empty() ? std::nullopt : std::make_optional(LinuxNamedData{ .name = name, .deleted = deleted, .special = special }));
 			}
 
@@ -394,6 +430,7 @@ namespace MemoryManager {
 		static_assert(AddressAware<RegionT>);
 		static_assert(LengthAware<RegionT>);
 		static_assert(FlagAware<RegionT>);
+		static_assert(SharedAware<RegionT>);
 		static_assert(NameAware<RegionT>);
 		static_assert(PathAware<RegionT>);
 		static_assert(!CanRead || Viewable<RegionT>);
