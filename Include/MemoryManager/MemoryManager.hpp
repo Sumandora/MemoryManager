@@ -75,6 +75,11 @@ namespace MemoryManager {
 	};
 
 	template <typename Region>
+	concept SharedAware = requires(const Region reg) {
+		{ reg.isShared() } -> std::convertible_to<bool>;
+	};
+
+	template <typename Region>
 	concept NameAware = requires(const Region reg) {
 		{ reg.getName() } -> std::same_as<std::optional<std::string>>;
 	};
@@ -121,6 +126,7 @@ namespace MemoryManager {
 		AddressAware<Region> ||
 		LengthAware<Region> ||
 		FlagAware<Region> ||
+		SharedAware<Region> ||
 		NameAware<Region> ||
 		PathAware<Region> ||
 		Viewable<Region>;
