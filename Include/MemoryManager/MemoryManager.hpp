@@ -43,9 +43,9 @@ namespace MemoryManager {
 		[[nodiscard]] constexpr bool isWriteable() const { return test(1); }
 		[[nodiscard]] constexpr bool isExecutable() const { return test(2); }
 
-		constexpr void setReadable(bool b) { set(0, b); }
-		constexpr void setWriteable(bool b) { set(1, b); }
-		constexpr void setExecutable(bool b) { set(2, b); }
+		constexpr void setReadable(bool b) & { set(0, b); }
+		constexpr void setWriteable(bool b) & { set(1, b); }
+		constexpr void setExecutable(bool b) & { set(2, b); }
 
 		[[nodiscard]] constexpr std::string toString() const
 		{
