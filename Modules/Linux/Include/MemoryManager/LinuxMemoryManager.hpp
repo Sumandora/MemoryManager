@@ -47,9 +47,9 @@ namespace MemoryManager {
 		std::uintptr_t address;
 		std::size_t length;
 		Flags flags;
-		LinuxSharedState sharedState;
-		std::optional<LinuxNamedData> namedData;
-		mutable std::unique_ptr<std::byte[]> cachedMemory;
+		LinuxSharedState shared_state;
+		std::optional<LinuxNamedData> named_data;
+		mutable std::unique_ptr<std::byte[]> cached_memory;
 
 	public:
 		constexpr LinuxRegion(
@@ -57,92 +57,92 @@ namespace MemoryManager {
 			std::uintptr_t address,
 			std::size_t length,
 			Flags flags,
-			LinuxSharedState sharedState,
-			std::optional<LinuxNamedData> namedData)
+			LinuxSharedState shared_state,
+			std::optional<LinuxNamedData> named_data)
 			: parent(parent)
 			, address(address)
 			, length(length)
 			, flags(flags)
-			, sharedState(sharedState)
-			, namedData(std::move(namedData))
+			, shared_state(shared_state)
+			, named_data(std::move(named_data))
 		{
 		}
 
-		[[nodiscard]] std::uintptr_t getAddress() const
+		[[nodiscard]] std::uintptr_t get_address() const
 		{
 			return address;
 		}
 
-		[[nodiscard]] std::size_t getLength() const
+		[[nodiscard]] std::size_t get_length() const
 		{
 			return length;
 		}
 
-		[[nodiscard]] Flags getFlags() const
+		[[nodiscard]] Flags get_flags() const
 		{
 			return flags;
 		}
 
-		[[nodiscard]] LinuxSharedState getSharedState() const
+		[[nodiscard]] LinuxSharedState get_shared_state() const
 		{
-			return sharedState;
+			return shared_state;
 		}
 
-		[[nodiscard]] bool isShared() const
+		[[nodiscard]] bool is_shared() const
 		{
-			return sharedState != LinuxSharedState::PRIVATE;
+			return shared_state != LinuxSharedState::PRIVATE;
 		}
 
-		[[nodiscard]] std::optional<std::string> getPath() const
+		[[nodiscard]] std::optional<std::string> get_path() const
 		{
-			return namedData.and_then([](const LinuxNamedData& namedData) -> std::optional<std::string> {
-				if (namedData.special)
+			return named_data.and_then([](const LinuxNamedData& named_data) -> std::optional<std::string> {
+				if (named_data.special)
 					return std::nullopt;
-				if (!namedData.name.starts_with('/'))
+				if (!named_data.name.starts_with('/'))
 					return std::nullopt;
-				return namedData.name;
+				return named_data.name;
 			});
 		}
 
-		[[nodiscard]] std::optional<std::string> getName() const
+		[[nodiscard]] std::optional<std::string> get_name() const
 		{
-			return namedData.transform([](const LinuxNamedData& d) {
+			return named_data.transform([](const LinuxNamedData& d) {
 				const auto pos = d.name.rfind('/');
 				return pos == std::string::npos || pos == d.name.size() ? d.name : d.name.substr(pos + 1);
 			});
 		}
 
-		[[nodiscard]] bool isDeleted() const
+		[[nodiscard]] bool is_deleted() const
 		{
-			return namedData.has_value() && namedData->deleted;
+			return named_data.has_value() && named_data->deleted;
 		}
 
-		[[nodiscard]] bool isSpecial() const
+		[[nodiscard]] bool is_special() const
 		{
-			return namedData.has_value() && namedData->special;
+			return named_data.has_value() && named_data->special;
 		}
 
-		[[nodiscard]] bool doesUpdateView() const
+		[[nodiscard]] bool does_update_view() const
 			requires CanRead
 		{
 			if constexpr (Local)
-				return flags.isReadable();
+				return flags.is_readable();
 			return false;
 		}
 
-		[[nodiscard]] std::span<const std::byte> view(bool updateCache = false) const
+		[[nodiscard]] std::span<const std::byte> view(bool update_cache = false) const
 			requires CanRead
 		{
 			if constexpr (Local)
-				if (doesUpdateView() && !updateCache)
-					return std::span{ reinterpret_cast<std::byte*>(getAddress()), getLength() };
+				if (does_update_view() && !update_cache)
+					return std::span{ reinterpret_cast<std::byte*>(get_address()), get_length() };
 
-			if (!cachedMemory || updateCache) {
-				cachedMemory.reset(new std::byte[getLength()]);
-				parent->read(getAddress(), cachedMemory.get(), getLength());
+			if (!cached_memory || update_cache) {
+				cached_memory.reset(new std::byte[get_length()]);
+				parent->read(get_address(), cached_memory.get(), get_length());
 			}
 
-			return std::span{ cachedMemory.get(), getLength() };
+			return std::span{ cached_memory.get(), get_length() };
 		}
 	};
 
@@ -151,13 +151,13 @@ namespace MemoryManager {
 		using Self = LinuxMemoryManager<Read, Write, Local>;
 
 	public:
-		static constexpr bool CanRead = Local || Read;
-		static constexpr bool CanWrite = Local || Write;
-		static constexpr bool StoresFileHandle = Read || Write;
-		static constexpr bool RequiresPermissionsForReading = Local && !Read;
-		static constexpr bool RequiresPermissionsForWriting = Local && !Write;
+		static constexpr bool CAN_READ = Local || Read;
+		static constexpr bool CAN_WRITE = Local || Write;
+		static constexpr bool STORES_FILE_HANDLE = Read || Write;
+		static constexpr bool REQUIRES_PERMISSIONS_FOR_READING = Local && !Read;
+		static constexpr bool REQUIRES_PERMISSIONS_FOR_WRITING = Local && !Write;
 
-		using RegionT = LinuxRegion<Self, CanRead, Local>;
+		using RegionT = LinuxRegion<Self, CAN_READ, Local>;
 
 	private:
 		std::string pid;
@@ -166,11 +166,11 @@ namespace MemoryManager {
 
 		using FileHandle = std::invoke_result_t<decltype([](const char* a1, int a2) { return ::open(a1, a2); }), const char*, int>;
 
-		[[no_unique_address]] std::conditional_t<StoresFileHandle, FileHandle, std::monostate> memInterface;
+		[[no_unique_address]] std::conditional_t<STORES_FILE_HANDLE, FileHandle, std::monostate> mem_interface;
 
 		static constexpr int INVALID_FILE_HANDLE = -1;
 
-		static decltype(memInterface) openFileHandle(const std::string& pid)
+		static decltype(mem_interface) open_file_handle(const std::string& pid)
 		{
 			if constexpr (!Read && !Write)
 				return std::monostate{};
@@ -190,15 +190,15 @@ namespace MemoryManager {
 			}
 		}
 
-		static constexpr int flagsToPosix(Flags flags)
+		static constexpr int flags_to_posix(Flags flags)
 		{
 			int prot = 0;
 
-			if (flags.isReadable())
+			if (flags.is_readable())
 				prot |= PROT_READ;
-			if (flags.isWriteable())
+			if (flags.is_writeable())
 				prot |= PROT_WRITE;
-			if (flags.isExecutable())
+			if (flags.is_executable())
 				prot |= PROT_EXEC;
 
 			return prot;
@@ -218,13 +218,13 @@ namespace MemoryManager {
 
 		explicit LinuxMemoryManager(const std::string& pid)
 			: pid(pid)
-			, memInterface(openFileHandle(pid))
+			, mem_interface(open_file_handle(pid))
 		{
 		}
 
 		~LinuxMemoryManager()
 		{
-			if constexpr (StoresFileHandle)
+			if constexpr (STORES_FILE_HANDLE)
 				close();
 		}
 
@@ -233,44 +233,44 @@ namespace MemoryManager {
 		LinuxMemoryManager& operator=(const LinuxMemoryManager& other) = delete;
 
 		void close()
-			requires StoresFileHandle
+			requires STORES_FILE_HANDLE
 		{
-			if (memInterface == INVALID_FILE_HANDLE)
+			if (mem_interface == INVALID_FILE_HANDLE)
 				return;
 
-			::close(memInterface);
-			memInterface = INVALID_FILE_HANDLE;
+			::close(mem_interface);
+			mem_interface = INVALID_FILE_HANDLE;
 		}
 
 		void reopen()
-			requires StoresFileHandle
+			requires STORES_FILE_HANDLE
 		{
-			if (memInterface != INVALID_FILE_HANDLE)
+			if (mem_interface != INVALID_FILE_HANDLE)
 				return;
 
-			memInterface = openFileHandle(pid);
+			mem_interface = open_file_handle(pid);
 		}
 
-		[[nodiscard]] bool isClosed() const
-			requires StoresFileHandle
+		[[nodiscard]] bool is_closed() const
+			requires STORES_FILE_HANDLE
 		{
-			return memInterface == INVALID_FILE_HANDLE;
+			return mem_interface == INVALID_FILE_HANDLE;
 		}
 
-		[[nodiscard]] const MemoryLayout<RegionT>& getLayout() const
+		[[nodiscard]] const MemoryLayout<RegionT>& get_layout() const
 		{
 			return layout;
 		}
 
 		void update()
 		{
-			std::fstream fileStream{ "/proc/" + pid + "/maps", std::fstream::in };
-			if (!fileStream) {
+			std::fstream file_stream{ "/proc/" + pid + "/maps", std::fstream::in };
+			if (!file_stream) {
 				throw std::exception{};
 			}
 
-			MemoryLayout<RegionT> newLayout{};
-			for (std::string line; std::getline(fileStream, line);) {
+			MemoryLayout<RegionT> new_layout{};
+			for (std::string line; std::getline(file_stream, line);) {
 				if (line.empty())
 					continue; // ?
 
@@ -296,62 +296,62 @@ namespace MemoryManager {
 				bool deleted = false;
 				bool special = false;
 				if (!name.empty()) {
-					constexpr static const char* deletedTag = " (deleted)";
-					constexpr static std::size_t deletedTagLen = std::char_traits<char>::length(deletedTag);
-					if (name.ends_with(deletedTag)) {
+					constexpr static const char* DELETED_TAG = " (deleted)";
+					constexpr static std::size_t DELETED_TAG_LEN = std::char_traits<char>::length(DELETED_TAG);
+					if (name.ends_with(DELETED_TAG)) {
 						deleted = true;
-						name = name.substr(0, name.length() - deletedTagLen);
+						name = name.substr(0, name.length() - DELETED_TAG_LEN);
 					}
 
 					if (name[0] == '[') {
 						special = true;
-						flags.setReadable(false); // They technically are, but only under a lot of conditions
+						flags.set_readable(false); // They technically are, but only under a lot of conditions
 					}
 				}
 
-				LinuxSharedState sharedState{};
+				LinuxSharedState shared_state{};
 				switch (shared) {
 				case 'S':
-					sharedState = LinuxSharedState::SHARED;
+					shared_state = LinuxSharedState::SHARED;
 					break;
 				case 's':
-					sharedState = LinuxSharedState::MAY_SHARE;
+					shared_state = LinuxSharedState::MAY_SHARE;
 					break;
 				case 'p':
-					sharedState = LinuxSharedState::PRIVATE;
+					shared_state = LinuxSharedState::PRIVATE;
 					break;
 				default:
 					std::unreachable();
 				}
 
-				newLayout.emplace(this, begin, end - begin, flags, sharedState,
+				new_layout.emplace(this, begin, end - begin, flags, shared_state,
 					name.empty() ? std::nullopt : std::make_optional(LinuxNamedData{ .name = name, .deleted = deleted, .special = special }));
 			}
 
-			fileStream.close();
+			file_stream.close();
 
-			layout = std::move(newLayout);
+			layout = std::move(new_layout);
 		}
 
-		[[nodiscard]] std::size_t getPageGranularity() const
+		[[nodiscard]] std::size_t get_page_granularity() const
 		{
 			// The page size could, in theory, be a different one for each process, but under Linux that shouldn't happen.
-			static const std::size_t pageSize = getpagesize();
-			return pageSize;
+			static const std::size_t PAGE_SIZE = getpagesize();
+			return PAGE_SIZE;
 		}
 
 		[[nodiscard]] std::uintptr_t allocate(std::size_t size, Flags protection) const
 			requires Local
 		{
-			const void* res = mmap(nullptr, size, flagsToPosix(protection), MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+			const void* res = mmap(nullptr, size, flags_to_posix(protection), MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 			if (res == MAP_FAILED)
 				throw std::runtime_error(strerror(errno));
 			return reinterpret_cast<uintptr_t>(res);
 		}
-		[[nodiscard]] std::optional<std::uintptr_t> allocateAt(std::uintptr_t address, std::size_t size, Flags protection) const
+		[[nodiscard]] std::optional<std::uintptr_t> allocate_at(std::uintptr_t address, std::size_t size, Flags protection) const
 			requires Local
 		{
-			const void* res = mmap(reinterpret_cast<void*>(address), size, flagsToPosix(protection), MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+			const void* res = mmap(reinterpret_cast<void*>(address), size, flags_to_posix(protection), MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
 			if (res == MAP_FAILED) {
 				const int err = errno;
 
@@ -374,54 +374,54 @@ namespace MemoryManager {
 		void protect(std::uintptr_t address, std::size_t size, Flags protection) const
 			requires Local
 		{
-			const auto res = mprotect(reinterpret_cast<void*>(address), size, flagsToPosix(protection));
+			const auto res = mprotect(reinterpret_cast<void*>(address), size, flags_to_posix(protection));
 
 			if (res == -1)
 				throw std::runtime_error(strerror(errno));
 		}
 
 	private:
-		void ensureOpen() const
+		void ensure_open() const
 		{
-			if constexpr (StoresFileHandle)
-				if (isClosed())
-					throw std::logic_error{ std::to_string(memInterface) };
+			if constexpr (STORES_FILE_HANDLE)
+				if (is_closed())
+					throw std::logic_error{ std::to_string(mem_interface) };
 		}
 
 	public:
 		void read(std::uintptr_t address, void* content, std::size_t length) const
-			requires CanRead
+			requires CAN_READ
 		{
 			if constexpr (Local && !Read) {
 				std::memcpy(content, reinterpret_cast<void*>(address), length);
 				return;
 			}
 
-			ensureOpen();
+			ensure_open();
 
 #ifdef __GLIBC__
-			const auto res = pread64(memInterface, content, length, static_cast<off64_t>(address));
+			const auto res = pread64(mem_interface, content, length, static_cast<off64_t>(address));
 #else
-			const auto res = pread(memInterface, content, length, static_cast<off_t>(address));
+			const auto res = pread(mem_interface, content, length, static_cast<off_t>(address));
 #endif
 			if (res == -1)
 				throw std::runtime_error(strerror(errno));
 		}
 
 		void write(std::uintptr_t address, const void* content, std::size_t length) const
-			requires CanWrite
+			requires CAN_WRITE
 		{
 			if constexpr (Local && !Write) {
 				std::memcpy(reinterpret_cast<void*>(address), content, length);
 				return;
 			}
 
-			ensureOpen();
+			ensure_open();
 
 #ifdef __GLIBC__
-			const auto res = pwrite64(memInterface, content, length, static_cast<off64_t>(address));
+			const auto res = pwrite64(mem_interface, content, length, static_cast<off64_t>(address));
 #else
-			const auto res = pwrite(memInterface, content, length, static_cast<off_t>(address));
+			const auto res = pwrite(mem_interface, content, length, static_cast<off_t>(address));
 #endif
 			if (res == -1)
 				throw std::runtime_error(strerror(errno));
@@ -433,7 +433,7 @@ namespace MemoryManager {
 		static_assert(SharedAware<RegionT>);
 		static_assert(NameAware<RegionT>);
 		static_assert(PathAware<RegionT>);
-		static_assert(!CanRead || Viewable<RegionT>);
+		static_assert(!CAN_READ || Viewable<RegionT>);
 	};
 
 	static_assert(LayoutAware<LinuxMemoryManager<true, true, true>>);

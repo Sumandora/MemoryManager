@@ -22,19 +22,19 @@ For managing local process memory:
 #include "MemoryManager/LinuxMemoryManager.hpp" 
 
 // Create manager
-MemoryManager::LinuxMemoryManager<false /*Force Read*/, true /*Force Write*/, true /*Local*/> memoryManager;
+MemoryManager::LinuxMemoryManager<false /*Force Read*/, true /*Force Write*/, true /*Local*/> memory_manager;
 
 // Allocate a memory page
-void* ptr = memoryManager.allocate(nullptr, ..., PROT_NONE);
+std::uintptr_t ptr = memory_manager.allocate(memory_manager.get_page_granularity(), PROT_NONE);
 
 // Make the memory manager aware of new memory sections
-memoryManager.update();
+memory_manager.update();
 
 // Read the memory on the new page
 int value;
-memoryManager.read(ptr, &value, sizeof(int));
+memory_manager.read(ptr, &value, sizeof(int));
 // Write to the memory on the new page
-memoryManager.write(ptr, &value, sizeof(int));
+memory_manager.write(ptr, &value, sizeof(int));
 ```
 
 ### External Memory Management
@@ -45,16 +45,16 @@ For managing external process memory:
 #include "MemoryManager/LinuxMemoryManager.hpp"
 
 // Create manager
-MemoryManager::LinuxMemoryManager<true /*Read*/, true /*Write*/> memoryManager(processId);
+MemoryManager::LinuxMemoryManager<true /*Read*/, true /*Write*/> memory_manager(processId);
 
 // Make the memory manager aware of all memory sections
-memoryManager.update();
+memory_manager.update();
 
 // Read the memory at "ptr"
 int value;
-memoryManager.read(ptr, &value, sizeof(int));
+memory_manager.read(ptr, &value, sizeof(int));
 // Write to the memory at "ptr"
-memoryManager.write(ptr, &value, sizeof(int));
+memory_manager.write(ptr, &value, sizeof(int));
 ```
 
 ## Implementation
