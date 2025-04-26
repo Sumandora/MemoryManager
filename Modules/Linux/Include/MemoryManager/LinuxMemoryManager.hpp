@@ -336,8 +336,8 @@ namespace MemoryManager {
 		[[nodiscard]] std::size_t get_page_granularity() const
 		{
 			// The page size could, in theory, be a different one for each process, but under Linux that shouldn't happen.
-			static const std::size_t PAGE_SIZE = getpagesize();
-			return PAGE_SIZE;
+			static const std::size_t CACHED_PAGE_SIZE = getpagesize();
+			return CACHED_PAGE_SIZE;
 		}
 
 		[[nodiscard]] std::uintptr_t allocate(std::size_t size, Flags protection) const
