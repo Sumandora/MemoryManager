@@ -18,7 +18,7 @@ int main()
 		std::println("{:x}-{:x} {} {} {} ({})",
 			reg.get_address(),
 			reg.get_address() + reg.get_length(),
-			reg.get_flags().to_string(),
+			reg.get_flags(),
 			reg.is_shared() ? "shared" : "private",
 			path,
 			name);

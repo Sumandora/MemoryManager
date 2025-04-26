@@ -6,6 +6,7 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <optional>
 #include <set>
 #include <span>
@@ -58,6 +59,17 @@ namespace MemoryManager {
 			return string;
 		}
 	};
+}
+
+template <>
+struct std::formatter<MemoryManager::Flags> : public std::formatter<std::string> {
+	constexpr auto format(MemoryManager::Flags flags, std::format_context& ctx) const
+	{
+		return std::formatter<std::string>::format(flags.to_string(), ctx);
+	}
+};
+
+namespace MemoryManager {
 
 	template <typename Region>
 	concept AddressAware = requires(const Region reg) {
