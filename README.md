@@ -45,7 +45,7 @@ For managing external process memory:
 #include "MemoryManager/LinuxMemoryManager.hpp"
 
 // Create manager
-MemoryManager::LinuxMemoryManager<true /*Read*/, true /*Write*/> memory_manager(processId);
+MemoryManager::LinuxMemoryManager<true /*Read*/, true /*Write*/> memory_manager(process_id);
 
 // Make the memory manager aware of all memory sections
 memory_manager.update();
