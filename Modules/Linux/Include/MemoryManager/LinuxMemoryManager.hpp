@@ -156,6 +156,7 @@ namespace MemoryManager {
 		static constexpr bool STORES_FILE_HANDLE = Read || Write;
 		static constexpr bool REQUIRES_PERMISSIONS_FOR_READING = Local && !Read;
 		static constexpr bool REQUIRES_PERMISSIONS_FOR_WRITING = Local && !Write;
+		static constexpr bool IS_LOCAL = Local;
 
 		using RegionT = LinuxRegion<Self, CAN_READ, Local>;
 
@@ -481,6 +482,18 @@ namespace MemoryManager {
 
 	static_assert(Writer<LinuxMemoryManager<true, true, false>>);
 	static_assert(Writer<LinuxMemoryManager<false, true, false>>);
+
+	static_assert(LocalAware<LinuxMemoryManager<true, true, true>>
+		&& LinuxMemoryManager<true, true, true>::IS_LOCAL);
+	static_assert(LocalAware<LinuxMemoryManager<true, false, true>>
+		&& LinuxMemoryManager<true, false, true>::IS_LOCAL);
+	static_assert(LocalAware<LinuxMemoryManager<false, true, true>>
+		&& LinuxMemoryManager<false, true, true>::IS_LOCAL);
+
+	static_assert(LocalAware<LinuxMemoryManager<true, true, false>>
+		&& !LinuxMemoryManager<true, true, false>::IS_LOCAL);
+	static_assert(LocalAware<LinuxMemoryManager<false, true, false>>
+		&& !LinuxMemoryManager<false, true, false>::IS_LOCAL);
 
 }
 

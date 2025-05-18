@@ -249,6 +249,16 @@ namespace MemoryManager {
 	    Reader<MemMgr> ||
 	    Writer<MemMgr>;
 	// clang-format on
+
+	// Implementing LocalAware does not make a type a MemoryManager, however if a MemoryManager does implement
+	// LocalAware, then it can be used to check if the memory manager operates on the local address space
+	template <typename MemMgr>
+	concept LocalAware = requires(const MemMgr manager) {
+		/**
+		 * Indicates if the memory manager operates on the same memory space as the process it lives in
+		 */
+		{ MemMgr::IS_LOCAL } -> std::convertible_to<bool>;
+	};
 }
 
 #endif
