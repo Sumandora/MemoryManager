@@ -206,21 +206,23 @@ namespace MemoryManager {
 		}
 
 	public:
-		explicit LinuxMemoryManager()
+		explicit LinuxMemoryManager(bool auto_sync = true)
 			requires Local
-			: LinuxMemoryManager("self")
+			: LinuxMemoryManager("self", auto_sync)
 		{
 		}
 
-		explicit LinuxMemoryManager(pid_t pid)
-			: LinuxMemoryManager(std::to_string(pid))
+		explicit LinuxMemoryManager(pid_t pid, bool auto_sync = true)
+			: LinuxMemoryManager(std::to_string(pid), auto_sync)
 		{
 		}
 
-		explicit LinuxMemoryManager(const std::string& pid)
+		explicit LinuxMemoryManager(const std::string& pid, bool auto_sync = true)
 			: pid(pid)
 			, mem_interface(open_file_handle(pid))
 		{
+			if (auto_sync)
+				update();
 		}
 
 		~LinuxMemoryManager()

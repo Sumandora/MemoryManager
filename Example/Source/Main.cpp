@@ -8,6 +8,7 @@
 int main()
 {
 	MemoryManager::LinuxMemoryManager<true, true, true> memory_manager;
+	assert(!memory_manager.get_layout().empty());
 
 	std::uintptr_t my_integer = memory_manager.allocate(sizeof(int), "---" /*No permissions*/);
 	memory_manager.update();
