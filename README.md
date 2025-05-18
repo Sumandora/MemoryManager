@@ -28,7 +28,7 @@ MemoryManager::LinuxMemoryManager<false /*Force Read*/, true /*Force Write*/, tr
 std::uintptr_t ptr = memory_manager.allocate(memory_manager.get_page_granularity(), PROT_NONE);
 
 // Make the memory manager aware of new memory sections
-memory_manager.update();
+memory_manager.sync_layout();
 
 // Read the memory on the new page
 int value;
@@ -48,7 +48,7 @@ For managing external process memory:
 MemoryManager::LinuxMemoryManager<true /*Read*/, true /*Write*/> memory_manager(process_id);
 
 // Make the memory manager aware of all memory sections
-memory_manager.update();
+memory_manager.sync_layout();
 
 // Read the memory at "ptr"
 int value;

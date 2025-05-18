@@ -222,7 +222,7 @@ namespace MemoryManager {
 			, mem_interface(open_file_handle(pid))
 		{
 			if (auto_sync)
-				update();
+				sync_layout();
 		}
 
 		~LinuxMemoryManager()
@@ -265,7 +265,7 @@ namespace MemoryManager {
 			return layout;
 		}
 
-		void update()
+		void sync_layout()
 		{
 			std::fstream file_stream{ "/proc/" + pid + "/maps", std::fstream::in };
 			if (!file_stream) {

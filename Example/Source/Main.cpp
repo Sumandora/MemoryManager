@@ -11,7 +11,7 @@ int main()
 	assert(!memory_manager.get_layout().empty());
 
 	std::uintptr_t my_integer = memory_manager.allocate(sizeof(int), "---" /*No permissions*/);
-	memory_manager.update();
+	memory_manager.sync_layout();
 
 	for (const auto& reg : memory_manager.get_layout()) {
 		auto name = reg.get_name().value_or("unnamed");

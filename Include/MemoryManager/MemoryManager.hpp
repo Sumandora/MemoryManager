@@ -170,7 +170,7 @@ namespace MemoryManager {
 		{ std::as_const(manager).get_layout() } -> std::same_as<const MemoryLayout<typename MemMgr::RegionT>&>;
 
 		// Warning: Calling this will invalidate all references to MemoryRegions
-		{ manager.update() };
+		{ manager.sync_layout() };
 	};
 
 	template <typename MemMgr>
