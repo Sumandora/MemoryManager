@@ -58,7 +58,7 @@ namespace MemoryManager {
 			std::size_t length,
 			Flags flags,
 			LinuxSharedState shared_state,
-			std::optional<LinuxNamedData> named_data)
+			std::optional<LinuxNamedData> named_data) noexcept
 			: parent(parent)
 			, address(address)
 			, length(length)
@@ -68,27 +68,27 @@ namespace MemoryManager {
 		{
 		}
 
-		[[nodiscard]] std::uintptr_t get_address() const
+		[[nodiscard]] std::uintptr_t get_address() const noexcept
 		{
 			return address;
 		}
 
-		[[nodiscard]] std::size_t get_length() const
+		[[nodiscard]] std::size_t get_length() const noexcept
 		{
 			return length;
 		}
 
-		[[nodiscard]] Flags get_flags() const
+		[[nodiscard]] Flags get_flags() const noexcept
 		{
 			return flags;
 		}
 
-		[[nodiscard]] LinuxSharedState get_shared_state() const
+		[[nodiscard]] LinuxSharedState get_shared_state() const noexcept
 		{
 			return shared_state;
 		}
 
-		[[nodiscard]] bool is_shared() const
+		[[nodiscard]] bool is_shared() const noexcept
 		{
 			return shared_state != LinuxSharedState::PRIVATE;
 		}
@@ -112,17 +112,17 @@ namespace MemoryManager {
 			});
 		}
 
-		[[nodiscard]] bool is_deleted() const
+		[[nodiscard]] bool is_deleted() const noexcept
 		{
 			return named_data.has_value() && named_data->deleted;
 		}
 
-		[[nodiscard]] bool is_special() const
+		[[nodiscard]] bool is_special() const noexcept
 		{
 			return named_data.has_value() && named_data->special;
 		}
 
-		[[nodiscard]] bool does_update_view() const
+		[[nodiscard]] bool does_update_view() const noexcept
 			requires CanRead
 		{
 			if constexpr (Local)
@@ -191,7 +191,7 @@ namespace MemoryManager {
 			}
 		}
 
-		static constexpr int flags_to_posix(Flags flags)
+		static constexpr int flags_to_posix(Flags flags) noexcept
 		{
 			int prot = 0;
 
@@ -254,13 +254,13 @@ namespace MemoryManager {
 			mem_interface = open_file_handle(pid);
 		}
 
-		[[nodiscard]] bool is_closed() const
+		[[nodiscard]] bool is_closed() const noexcept
 			requires STORES_FILE_HANDLE
 		{
 			return mem_interface == INVALID_FILE_HANDLE;
 		}
 
-		[[nodiscard]] const MemoryLayout<RegionT>& get_layout() const
+		[[nodiscard]] const MemoryLayout<RegionT>& get_layout() const noexcept
 		{
 			return layout;
 		}
@@ -384,7 +384,7 @@ namespace MemoryManager {
 		}
 
 	private:
-		void ensure_open() const
+		void ensure_open() const noexcept(!STORES_FILE_HANDLE)
 		{
 			if constexpr (STORES_FILE_HANDLE)
 				if (is_closed())

@@ -40,9 +40,9 @@ namespace MemoryManager {
 			set(2, executable);
 		}
 
-		[[nodiscard]] constexpr bool is_readable() const { return test(0); }
-		[[nodiscard]] constexpr bool is_writeable() const { return test(1); }
-		[[nodiscard]] constexpr bool is_executable() const { return test(2); }
+		[[nodiscard]] constexpr bool is_readable() const noexcept { return test(0); }
+		[[nodiscard]] constexpr bool is_writeable() const noexcept { return test(1); }
+		[[nodiscard]] constexpr bool is_executable() const noexcept { return test(2); }
 
 		constexpr void set_readable(bool b) & { set(0, b); }
 		constexpr void set_writeable(bool b) & { set(1, b); }
@@ -181,10 +181,10 @@ namespace MemoryManager {
 	template <typename MemMgr>
 	concept PositionedAllocator = requires(const MemMgr manager, std::uintptr_t address, std::size_t size, Flags protection) {
 		/**
-		 * Allocates a memory region at an address
-		 * @param address indicates the location of the new memory; the address must be aligned to page granularity
+		 * Allocates a memory region at an address.
+		 * @param address indicates the location of the new memory; the address must be aligned to page granularity.
 		 * @param size may get rounded up to pagesize
-		 * @returns pointer to the new memory or nothing if the address already has an mapping associated with it
+		 * @returns pointer to the new memory or nothing if the address already has a mapping associated with it.
 		 */
 		{ manager.allocate_at(address, size, protection) } -> std::same_as<std::optional<std::uintptr_t>>;
 	};
