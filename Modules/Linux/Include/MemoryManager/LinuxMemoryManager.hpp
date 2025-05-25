@@ -289,9 +289,9 @@ namespace MemoryManager {
 				(void)sscanf(line.c_str(), "%zx-%zx %c%c%c%c %*x %*x:%*x %*x%n",
 					&begin, &end, &perms[0], &perms[1], &perms[2], &shared, &offset);
 
-				while (offset < line.length() && line[offset] == ' ')
+				while (std::cmp_less(offset, line.length()) && line[offset] == ' ')
 					offset++;
-				if (offset < line.length())
+				if (std::cmp_less(offset, line.length()))
 					name = line.c_str() + offset;
 
 				Flags flags{ perms };
